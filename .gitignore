@@ -1,0 +1,52 @@
+# Local secrets and API credentials
+.env
+.env.*
+!.env.example
+n8n_academy_strateg_api.env
+credentials/
+secrets/
+*.credentials.json
+*service-account*.json
+*oauth*.json
+token.json
+tokens/
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# JavaScript and general caches
+node_modules/
+.cache/
+dist/
+build/
+
+# Python local state
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Spreadsheet exports and personal-data snapshots
+04_GOOGLE_SHEETS/
+*.xlsx
+*.xls
+*.csv
+*.tsv
+
+# Runtime and live-system exports
+03_N8N_WORKFLOWS/
+reports/
+
+# Local generated audit outputs
+reports/google_sheets_audit/*.json
+reports/google_sheets_audit/*.md
+reports/n8n_api_diagnostics/*.json
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
