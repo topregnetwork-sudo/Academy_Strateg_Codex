@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        align-items: center;
+        background: #f5f7fa;
+        color: #1f2937;
+        display: flex;
+        font: 16px/1.5 Arial, sans-serif;
+        justify-content: center;
+        margin: 0;
+        min-height: 100vh;
+        padding: 24px;
+        text-align: center;
+      }
+      main { max-width: 520px; }
+      a { color: #155eef; }
+    </style>
+  </head>
+  <body
+    data-can-redirect="<?= canRedirect ? 'true' : 'false' ?>"
+    data-click-id="<?= clickId ?>"
+    data-link-id="<?= linkId ?>"
+    data-target-url="<?= targetUrl ?>">
+    <main>
+      <p id="status"><?= publicMessage ?></p>
+      <? if (canRedirect) { ?>
+        <p><a id="continue" href="<?= targetUrl ?>" rel="noreferrer" hidden>Продолжить</a></p>
+      <? } ?>
+    </main>
+    <script>
+      (function () {
+        const canRedirect = document.body.dataset.canRedirect === 'true';
+        const targetUrl = document.body.dataset.targetUrl;
+        const payload = {
+          link_id: document.body.dataset.linkId,
+          click_id: document.body.dataset.clickId,
+          user_agent: navigator.userAgent || ''
+        };
+        let completed = false;
+
+        function showContinue() {
+          if (!canRedirect || completed) return;
+          completed = true;
+          document.getElementById('status').textContent = 'Ссылка готова.';
+          document.getElementById('continue').hidden = false;
+        }
+
+        google.script.run
+          .withSuccessHandler(showContinue)
+          .withFailureHandler(showContinue)
+          .recordClick(payload);
+
+        if (canRedirect) {
+          window.setTimeout(showContinue, 1500);
+        }
+      }());
+    </script>
+  </body>
+</html>
