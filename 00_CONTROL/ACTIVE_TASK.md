@@ -1,9 +1,25 @@
 # ACTIVE TASK
 
-`AS-CODEX-CHATGPT-LIVE-BRIDGE-001`
+[CHATGPT→CODEX]
 
-Цель: использовать текущий чат как операционный терминал Codex ↔ ChatGPT без ручного переноса сообщений пользователем.
+## [ЭТАП]
 
-Статус: выполнено. Протокол зафиксирован и используется в текущем чате; обязательные файлы `00_CONTROL` ведутся. Техническая задача `AS-HR-INVITE-APPS-SCRIPT-DIRECT-CODE-FIX-001` остаётся в ожидании отдельного задания архитектора: live-backup выполнен, live совпадает с локальным экспортом, diff готов и не применён.
+`AS-SMART-LINK-ROUTER-TARGET-ARCHITECTURE-001`
 
-Следующее действие: ждать сообщение `[CHATGPT→CODEX]`. Production-действия не начинать.
+## [СТАТУС]
+
+Выполнено в текущем доверенном сеансе после создания и dry-run проверки autonomous worker.
+
+## [РЕЗУЛЬТАТ]
+
+- Worker подготовлен и локально проверен.
+- Целевая архитектура Router зафиксирована в `06_REPORTS/SMART_LINK_ROUTER_TARGET_ARCHITECTURE.md`.
+- Production, deploy, generator diff и строки не изменялись.
+
+## [БЛОКЕР]
+
+ChatGPT не может поставить следующий task в GitHub из-за `403 Resource not accessible by integration`. Нужен минимальный writable task-inbox.
+
+## [ОДИН СЛЕДУЮЩИЙ ШАГ]
+
+Устранить 403 только для канала постановки задач; опасные и production-действия остаются под подтверждением пользователя.

@@ -45,6 +45,9 @@ reports/google_sheets_audit/*.json
 reports/google_sheets_audit/*.md
 reports/n8n_api_diagnostics/*.json
 
+# Autonomous worker local checkout, state and logs
+tools/codex_autonomous_worker/.runtime/
+
 # OS/editor noise
 .DS_Store
 Thumbs.db

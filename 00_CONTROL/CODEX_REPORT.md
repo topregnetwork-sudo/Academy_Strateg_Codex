@@ -4,65 +4,82 @@
 
 ## [ЭТАП]
 
-`AS-SMART-LINK-ROUTER-MVP-001` — подготовка отдельного Smart Link Router MVP без deploy.
+`AS-CODEX-AUTONOMOUS-WORKER-001`
+
+После настройки worker выполнен безопасный документационный этап `AS-SMART-LINK-ROUTER-TARGET-ARCHITECTURE-001`.
 
 ## [ЧТО СДЕЛАНО]
 
-- Подготовлен локальный standalone-код Apps Script Web App в `10_ARCHITECTURE/SMART_LINK_ROUTER_MVP/`.
-- Созданы план MVP, схема event-log и тест-план.
-- Конфигурация вынесена в Script Properties; реальные URL, ID таблиц и секреты в репозиторий не добавлены.
-- Добавлены строгая проверка `link_id`, безопасная генерация `click_id`, серверное построение `target_url`, проверка заголовка event-log и защита ячеек от formula injection.
-- Локальные проверки маршрута, негативных форматов, конфигурационных ошибок, схемы, защиты ячеек и HTML-контракта пройдены: `SMART_LINK_ROUTER_LOCAL_TESTS_OK`.
-- Deploy и боевые тесты не выполнялись.
+- Создан протокол автономного worker и файлы обмена `TO_CODEX.md` / `TO_CHATGPT.md`.
+- Создан PowerShell worker с отдельным локальным checkout, периодическим `git pull --ff-only`, task-hash, non-interactive `codex exec`, allowlist путей, секрет-сканом, commit и push.
+- Worker использует `workspace-write`, не включает bypass approvals/sandbox и не читает каталог секретов.
+- Добавлен `.runtime/` в `.gitignore`; checkout, state, lock и логи не попадают в GitHub.
+- PowerShell syntax check пройден.
+- Повторный dry-run пройден: pull выполнен, старый task безопасно распознан как неисполняемый, Codex/commit/push не запускались.
+- Подготовлена целевая архитектура Smart Link Router без deploy и боевых изменений.
 
-## [КАКОЙ ROUTER ПОДГОТОВЛЕН]
+## [КАК РАБОТАЕТ WORKER]
 
-Вход: `link_id=btm_XXXXXX_hr_invite`, где `XXXXXX` — ровно шесть цифр.
+```text
+GitHub main
+→ pull --ff-only
+→ точная отдельная метка [CHATGPT→CODEX]
+→ новый SHA-256 ACTIVE_TASK.md
+→ codex exec --sandbox workspace-write --ephemeral
+→ проверка разрешённых путей и секретов
+→ commit
+→ push main
+```
 
-Router:
+Задача повторно не выполняется по тому же hash. Грязный checkout, неизвестный путь, секрет-риск, новый approval или ошибка останавливают push.
 
-1. проверяет формат `link_id` по строгому шаблону;
-2. извлекает `btm_id=btm_XXXXXX`;
-3. задаёт `link_type=hr_invite` и `source_id=hr_invite`;
-4. создаёт уникальный `click_id`;
-5. строит URL вида `SITE_BASE_URL/index.html?ref=btm_XXXXXX&source_id=hr_invite&link_type=hr_invite&click_id=CLICK_ID`;
-6. отдаёт минимальную HTML-страницу, которая пытается записать событие и показывает ссылку `Продолжить` на target URL.
+## [БЛОКЕР АВТОНОМНОГО КАНАЛА]
 
-[ПОДТВЕРЖДЕНО] Это отдельный архитектурный слой. Он не встроен в production-генератор.
+Worker готов принимать задачи из GitHub, но ChatGPT имеет только read-доступ и получает 403 при записи. Без writable inbox ChatGPT физически не может обновить `ACTIVE_TASK.md`; следовательно, полностью исключить ручную передачу новых задач пока нельзя.
 
-## [EVENT LOG]
+Нужен минимальный доступ только к task-inbox либо другой утверждённый GitHub-канал с записью. Секреты и production-доступ для этого не нужны.
 
-Подготовлена фиксированная схема:
+## [SMART LINK ROUTER TARGET ARCHITECTURE]
 
-`timestamp`, `click_id`, `link_id`, `btm_id`, `link_type`, `source_id`, `target_url`, `status`, `user_agent`, `error`.
+- Текущие `hr_invite` ведут прямо на Google Form и не имеют отдельного destination.
+- Прямой Form URL нельзя перенаправить на новый target без одноразового изменения самого сохранённого URL.
+- Целевая постоянная ссылка должна вести на стабильный Router hostname и содержать неизменный `link_id`.
+- Router должен выполнять строгую проверку, создавать `click_id`, писать отдельный event-log и отдавать настоящий HTTP redirect на `SITE_BASE_URL`.
+- Apps Script `HtmlService` остаётся MVP логики, но не утверждён как production runtime из-за sandbox и отсутствия надёжного автоматического top-level redirect.
+- Любая миграция начинается только с synthetic test и позднее одной заранее выбранной строки после backup и отдельных разрешений.
 
-Запись по умолчанию выключена. Она возможна только после выбора отдельного места хранения и явного задания Script Properties. Код не создаёт и не переименовывает листы.
+Полный документ: `06_REPORTS/SMART_LINK_ROUTER_TARGET_ARCHITECTURE.md`.
 
 ## [ЧТО НУЖНО РЕШИТЬ]
 
-1. Утвердить точный `SITE_BASE_URL`.
-2. Выбрать отдельное место для event-log и срок хранения `user_agent`.
-3. Дать отдельное разрешение на deploy Web App.
-4. Дать отдельное разрешение на тест ровно одной строки `hr_invite`.
+1. Writable task-inbox для ChatGPT.
+2. Нужна ли отдельная регистрация Windows Scheduled Task для постоянного фонового запуска worker.
+3. `SITE_BASE_URL`.
+4. Production-capable Router runtime и стабильный hostname.
+5. Отдельное место и политика event-log.
+6. Позднее — отдельные разрешения на test deployment и тест одной строки.
 
 ## [ЧТО НЕ ТРОГАЛИ]
 
-- generator diff не применялся;
-- production Apps Script генератора не менялся;
-- 3000 строк не менялись;
-- `business_test_main` не менялся;
-- `AS-BOT__00_MAIN_ROUTER`, n8n, Telegram и HR-форма не менялись;
-- credentials, webhook URL и боевые данные не читались и не изменялись;
-- Web App не разворачивался.
+- production Apps Script;
+- generator diff;
+- 3000 строк;
+- `business_test_main`;
+- `AS-BOT__00_MAIN_ROUTER`, n8n;
+- Telegram;
+- HR-форму и HR-Zoom;
+- боевые таблицы;
+- deploy/publish;
+- Windows Scheduled Task.
 
 ## [РИСКИ]
 
-- `HtmlService` не предоставляет серверный HTTP 302, а sandbox ограничивает автоматическую top-navigation; надёжный Apps Script MVP требует дополнительного клика `Продолжить`.
-- `user_agent` является непроверенным клиентским значением и может относиться к персональным/техническим данным; нужен срок хранения и ограничение доступа.
-- При отключённом или недоступном event-log ссылка `Продолжить` всё равно показывается, но событие может не записаться.
-- Ошибочный `SITE_BASE_URL` остановит переход с безопасным сообщением.
-- До deploy нельзя подтвердить фактические разрешения Apps Script и поведение в реальном браузере.
+- Read-only ChatGPT не может поставить новую задачу worker.
+- Foreground worker работает только пока открыт процесс PowerShell.
+- Любой non-interactive approval завершается блокером, а не ожиданием пользователя.
+- Стабильный Router URL требует runtime с настоящим HTTP redirect и hostname, не зависящим от версии deployment.
+- Массовая миграция прямых Form URL без теста одной строки может сломать воронку.
 
 ## [ОДИН СЛЕДУЮЩИЙ ШАГ]
 
-ChatGPT утверждает `SITE_BASE_URL` и место для отдельного event-log; deploy и тест одной строки остаются запрещены до двух отдельных разрешений.
+Выдать ChatGPT минимальный writable task-inbox; production Router пока не deploy и строки не менять.
