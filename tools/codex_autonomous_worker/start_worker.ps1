@@ -103,11 +103,11 @@ function Test-TaskCompleted {
     param([string[]]$TaskLines)
     $statusRu = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('0KHQotCQ0KLQo9Ch'))
     $completedRu = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('0LLRi9C/0L7Qu9C90LXQvdC+'))
+    $statusPattern = '(?i)^\s*#*\s*\[?(?:status|' + [Regex]::Escape($statusRu) + ')\]?\s*:?.*$'
 
     for ($index = 0; $index -lt $TaskLines.Count; $index++) {
         $line = $TaskLines[$index]
-        $isStatusLabel = $line -match '(?i)^\s*#*\s*\[?status\]?' -or
-            $line.IndexOf($statusRu, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        $isStatusLabel = $line -match $statusPattern
         if (-not $isStatusLabel) { continue }
 
         $lastIndex = [Math]::Min($TaskLines.Count - 1, $index + 3)

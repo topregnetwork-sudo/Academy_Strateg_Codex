@@ -19,8 +19,15 @@
 - live_rows_changed = 0
 - secrets_read = no
 - credentials_stored_or_printed = no
-- commit_performed = no
-- push_performed = no
+- commit_performed = yes
+- push_performed = yes
+- autonomous_commit = `a01641e`
+- scheduled_task_name = `AcademyStrateg_Codex_AutonomousWorker`
+- scheduled_task_enabled = yes
+- scheduled_interval_minutes = 2
+- scheduled_task_last_result = 0
+- light_watcher_empty_cycle_starts_codex = no
+- same_sha_auto_retry = no
 - sandbox = `workspace-write`
 
 ## [ПОДТВЕРЖДЕНО]
@@ -29,6 +36,9 @@
 - Click-log варианты содержат плюсы, ограничения и MVP-рекомендацию.
 - Разделены synthetic test, test deployment и тест одной строки; внешние этапы требуют отдельных разрешений.
 - Зафиксированы rollback и измеримые критерии приёмки.
+- Windows Scheduled Task создан от текущего пользователя, включён и запускает скрытый `start_worker.ps1 -Once` каждые 2 минуты.
+- Первый новый SHA из `NEXT_TASK.md` запустил ровно один `codex exec`; wrapper создал commit `a01641e` и отправил его в `main`.
+- Повторные пустые циклы не запускают модель, commit или push.
 
 ## [ОЖИДАЕТ РЕШЕНИЯ, НЕ БЛОКИРУЕТ ДОКУМЕНТАЦИЮ]
 

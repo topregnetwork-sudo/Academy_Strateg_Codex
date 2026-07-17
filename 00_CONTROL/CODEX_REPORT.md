@@ -31,6 +31,16 @@
 - `business_test_main`, n8n, Telegram, HR-форма, боевые таблицы и 3000 строк не затронуты.
 - Секреты и credentials не читались, не печатались и не сохранялись.
 
+## [AUTONOMOUS WORKER RUN]
+
+- Windows Scheduled Task `AcademyStrateg_Codex_AutonomousWorker` создан и включён.
+- Интервал: каждые 2 минуты; действие: скрытый non-interactive PowerShell с `start_worker.ps1 -Once`.
+- Два пустых LIGHT WATCHER цикла до постановки задачи завершились без `codex exec`, commit и push.
+- Новый SHA `NEXT_TASK.md` запустил ровно один CODEX EXEC.
+- Worker самостоятельно создал документы, проверил allowlist/секреты, создал commit `a01641e` и запушил `main`.
+- Last Result Windows Scheduled Task: `0`.
+- Исправлено ложное распознавание слова `Выполнено` внутри текста задания: теперь проверяется только секция `[СТАТУС]`.
+
 ## [НЕ ПОДТВЕРЖДЕНО]
 
 - точный `SITE_BASE_URL`;

@@ -4,7 +4,7 @@
 
 [ЭТАП] `AS-SMART-LINK-ROUTER-CLOUDFLARE-WORKER-PLAN-001`
 
-[СТАТУС] Выполнено. Создан и локально проверен `06_REPORTS/CLOUDFLARE_WORKER_ROUTER_PLAN.md`.
+[СТАТУС] Выполнено автономно. Scheduled Task каждые 2 минуты запустил один CODEX EXEC для нового SHA; создан и запушен `06_REPORTS/CLOUDFLARE_WORKER_ROUTER_PLAN.md`, commit `a01641e`.
 
 [ПОДТВЕРЖДЕНО] План задаёт custom hostname, настоящий HTTP `302`, два строгих входа, единую нормализацию, новый `click_id`, target URL, click-log варианты, безопасную конфигурацию, разрешения, тестовые этапы, rollback и критерии приёмки.
 
