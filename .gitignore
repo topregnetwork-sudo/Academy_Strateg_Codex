@@ -20,6 +20,7 @@ id_ed25519*
 # JavaScript and general caches
 node_modules/
 .cache/
+.wrangler/
 dist/
 build/
 

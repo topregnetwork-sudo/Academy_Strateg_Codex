@@ -2,52 +2,44 @@
 
 [CODEX→CHATGPT]
 
-[ЭТАП] `AS-SMART-LINK-ROUTER-CLOUDFLARE-WORKER-PLAN-001`
+## [ЭТАП]
+
+`AS-SMART-LINK-ROUTER-CLOUDFLARE-TEST-DEPLOY-001`
 
 ## [СТАТУС]
 
-- task_status = `Выполнено`
-- documentation_created = yes
-- documentation_path = `06_REPORTS/CLOUDFLARE_WORKER_ROUTER_PLAN.md`
-- local_validation = passed
-- changed_paths_within_allowlist = yes
-- cloudflare_deploy_performed = no
-- cloudflare_resources_changed = no
-- production_changed = no
-- generator_changed = no
-- generator_diff_applied = no
-- live_rows_changed = 0
-- secrets_read = no
-- credentials_stored_or_printed = no
-- commit_performed = yes
-- push_performed = yes
-- autonomous_commit = `a01641e`
-- scheduled_task_name = `AcademyStrateg_Codex_AutonomousWorker`
-- scheduled_task_enabled = yes
-- scheduled_interval_minutes = 2
-- scheduled_task_last_result = 0
-- light_watcher_empty_cycle_starts_codex = no
-- same_sha_auto_retry = no
-- sandbox = `workspace-write`
+- task_status = `выполнено`
+- cloudflare_test_deploy = `success`
+- deployment_type = `temporary_preview`
+- worker_url = `https://academy-strateg-smart-link-router-test-20260717.incongruous-college.workers.dev`
+- local_tests = `6/6 passed`
+- live_redirect_tests = `2/2 passed`
+- redirect_status = `302`
+- site_base_url = `https://example.com (synthetic placeholder)`
+- custom_domain_connected = `no`
+- production_changed = `no`
+- generator_changed = `no`
+- generator_diff_applied = `no`
+- live_rows_changed = `0`
+- secrets_pushed = `no`
+- claim_url_pushed = `no`
+- permanent_event_log_created = `no`
+- stopped_after_test_deploy = `yes`
 
-## [ПОДТВЕРЖДЕНО]
+## [WORKER GUARDRAILS]
 
-- План покрывает HTTP `302`, стабильный custom hostname, оба входных формата, строгую нормализацию, `click_id` и target URL.
-- Click-log варианты содержат плюсы, ограничения и MVP-рекомендацию.
-- Разделены synthetic test, test deployment и тест одной строки; внешние этапы требуют отдельных разрешений.
-- Зафиксированы rollback и измеримые критерии приёмки.
-- Windows Scheduled Task создан от текущего пользователя, включён и запускает скрытый `start_worker.ps1 -Once` каждые 2 минуты.
-- Первый новый SHA из `NEXT_TASK.md` запустил ровно один `codex exec`; wrapper создал commit `a01641e` и отправил его в `main`.
-- Повторные пустые циклы не запускают модель, commit или push.
+- Входы: `/hr/btm_001001` и `/?link_id=btm_001001_hr_invite`.
+- Redirect: HTTP `302`, `Cache-Control: no-store`.
+- Target: только HTTPS `SITE_BASE_URL/index.html` с фиксированными параметрами.
+- Ошибочные входы fail closed (`400/404/405`), ошибка конфигурации — `503`.
+- Логи не содержат IP, user-agent, cookies и персональные данные.
 
-## [ОЖИДАЕТ РЕШЕНИЯ, НЕ БЛОКИРУЕТ ДОКУМЕНТАЦИЮ]
+## [НЕ ТРОГАЛИ]
 
-- `SITE_BASE_URL`;
-- `ROUTER_HOST` / Cloudflare zone;
-- sampled Analytics Engine либо точный ledger;
-- отдельное разрешение на test deployment;
-- отдельное более позднее разрешение на тест одной строки.
+Apps Script generator, generator diff, 3000 строк, `business_test_main`, n8n,
+Telegram, HR-форму, боевой домен и боевые данные.
 
 ## [ОДИН СЛЕДУЮЩИЙ ШАГ]
 
-Получить решение пользователя по `SITE_BASE_URL`, `ROUTER_HOST` и типу click-log; остановиться до deploy.
+Остановиться до утверждения реального `SITE_BASE_URL` и отдельного решения по
+постоянному тестовому deployment. Строки и генератор не менять.
