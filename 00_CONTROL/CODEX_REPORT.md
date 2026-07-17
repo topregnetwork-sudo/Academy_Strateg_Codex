@@ -4,60 +4,48 @@
 
 ## [ЭТАП]
 
-`AS-CODEX-AUTONOMOUS-WORKER-RUN-001`
+`AS-SMART-LINK-ROUTER-CLOUDFLARE-WORKER-PLAN-001`
+
+## [СТАТУС]
+
+Выполнено.
 
 ## [ЧТО СДЕЛАНО]
 
-- Worker перестроен на два слоя: `LIGHT WATCHER` и условный `CODEX EXEC`.
-- Интервал по умолчанию изменён на 120 секунд.
-- LIGHT WATCHER читает только `ACTIVE_TASK.md` и `NEXT_TASK.md`, считает SHA-256 и сверяет локальную историю.
-- `codex exec` разрешён только для нового незавершённого SHA с точной отдельной меткой `[CHATGPT→CODEX]`.
-- SHA записывается в attempted-history до обращения к модели; ошибка того же SHA не расходует лимит каждые 2 минуты.
-- Если изменений нет, commit и push не выполняются.
-- Создан `00_CONTROL/NEXT_TASK.md` с первой задачей `AS-SMART-LINK-ROUTER-CLOUDFLARE-WORKER-PLAN-001`.
-- PowerShell syntax check пройден.
-- Два последовательных пустых LIGHT WATCHER цикла пройдены: только pull + SHA-check + exit, без Codex/commit/push.
+- Создан `06_REPORTS/CLOUDFLARE_WORKER_ROUTER_PLAN.md`.
+- Зафиксирован настоящий серверный HTTP `302` с `Location` и `Cache-Control: no-store`.
+- Определён production custom hostname и два строгих входа: `/hr/btm_001001` и `/r?link_id=btm_001001_hr_invite`.
+- Описана единая нормализация в `link_id`, `btm_id`, `link_type=hr_invite`, `source_id=hr_invite`.
+- Описаны `click_id`, безопасная сборка target URL, ошибки fail-closed и неблокирующий click-log.
+- Сравнены Workers Logs, Analytics Engine, D1 и внешний collector. Для MVP рекомендованы Workers Logs + Analytics Engine; Analytics Engine не объявлен точным ledger.
+- Зафиксированы конфигурация без секретов, данные/разрешения от пользователя, synthetic test, test deployment, тест одной строки, rollback и критерии приёмки.
+- В `00_CONTROL/DECISION_REQUIRED.md` записан точный блокер будущего deploy и один безопасный следующий шаг.
+- Сверены актуальные официальные документы Cloudflare по routing, secrets, observability, Analytics Engine и versions/deployments.
 
-## [ПРОВЕРКА ПУСТОГО ЦИКЛА]
+## [ПРОВЕРЕНО]
 
-Оба цикла вернули:
+- Изменения только в allowlist: `06_REPORTS/` и `00_CONTROL/`.
+- Cloudflare account/resources не создавались и не менялись.
+- Deploy, publish и внешние записи не выполнялись.
+- Apps Script generator и generator diff не менялись и не применялись.
+- `business_test_main`, n8n, Telegram, HR-форма, боевые таблицы и 3000 строк не затронуты.
+- Секреты и credentials не читались, не печатались и не сохранялись.
 
-`LIGHT WATCHER: no new task; exit without codex exec, commit or push.`
+## [НЕ ПОДТВЕРЖДЕНО]
 
-Это подтверждает, что пустой цикл не анализирует проект моделью и не расходует Codex-лимит.
-
-## [ОЧЕРЕДЬ]
-
-После публикации worker должен взять `NEXT_TASK.md`, потому что `ACTIVE_TASK.md` завершён. Первая задача создаёт только документ:
-
-`06_REPORTS/CLOUDFLARE_WORKER_ROUTER_PLAN.md`.
-
-## [WINDOWS SCHEDULED TASK]
-
-Имя: `AcademyStrateg_Codex_AutonomousWorker`.
-
-Период: каждые 2 минуты.
-
-Команда: скрытый non-interactive PowerShell, `start_worker.ps1 -Once`.
-
-Регистрация и первый запуск выполняются после push проверенной версии worker.
-
-## [ЧТО НЕ ТРОГАЛИ]
-
-- production Apps Script;
-- generator diff и 3000 строк;
-- `business_test_main`;
-- n8n, Telegram, HR-форму;
-- боевые таблицы;
-- Cloudflare account/resources;
-- секреты.
+- точный `SITE_BASE_URL`;
+- точный `ROUTER_HOST` и Cloudflare zone/account;
+- разрешение на test Worker/dataset и test deployment;
+- достаточен ли sampled Analytics Engine или нужен точный ledger;
+- строка для будущего одно-строчного теста.
 
 ## [РИСКИ]
 
-- Scheduled Task работает от текущего Windows-пользователя и зависит от сохранённых Git/Codex авторизаций.
-- Один неуспешный SHA автоматически не повторяется; для явного retry нужно изменить task-файл.
-- Dirty checkout или unpushed commit останавливает watcher до ручной проверки.
+- `302` нельзя кэшировать, иначе повторные клики не получат новый `click_id`.
+- Analytics Engine имеет sampling и трёхмесячное хранение; для гарантированного поиска каждого клика нужен отдельный точный datastore.
+- Custom hostname нельзя подключать к production до изолированной приёмки.
+- Массовая миграция 3000 строк остаётся отдельным запрещённым этапом.
 
 ## [ОДИН СЛЕДУЮЩИЙ ШАГ]
 
-Запушить worker/queue, зарегистрировать Scheduled Task и проверить появление Cloudflare Router plan в GitHub.
+Получить решение пользователя по `SITE_BASE_URL`, `ROUTER_HOST` и типу MVP click-log; до этого не deploy и не менять строки.
