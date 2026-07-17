@@ -9,7 +9,9 @@
 - worker_code_ready = yes
 - powershell_parse_check = passed
 - worker_local_dry_run = passed
+- worker_one_cycle_validation = passed
 - last_dry_run_utc = `2026-07-17T03:37:34Z`
+- last_safe_cycle_utc = `2026-07-17T03:41:04Z`
 - worker_background_process_started = no
 - github_pull_supported = yes
 - github_commit_push_supported = yes
@@ -30,6 +32,8 @@ Dry-run:
 6. не создавал commit и не выполнял push.
 
 Первая локальная проверка выявила ложное распознавание метки, упомянутой внутри старого текста. Детектор исправлен: теперь метка должна быть отдельной точной строкой. Повторный dry-run пройден.
+
+После публикации выполнен обычный цикл `-Once`: worker fast-forward обновил checkout до commit `f43973a`, распознал точную task-метку и статус `Выполнено`, вернул `IDLE: ACTIVE_TASK is already completed` и не запускал Codex, commit или push.
 
 ## [КАНАЛ]
 

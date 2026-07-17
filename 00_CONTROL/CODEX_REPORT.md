@@ -16,6 +16,7 @@
 - Добавлен `.runtime/` в `.gitignore`; checkout, state, lock и логи не попадают в GitHub.
 - PowerShell syntax check пройден.
 - Повторный dry-run пройден: pull выполнен, старый task безопасно распознан как неисполняемый, Codex/commit/push не запускались.
+- После публикации пройден обычный цикл `-Once`: checkout обновлён до `f43973a`, завершённая задача корректно пропущена, Codex/commit/push не запускались.
 - Подготовлена целевая архитектура Smart Link Router без deploy и боевых изменений.
 
 ## [КАК РАБОТАЕТ WORKER]
