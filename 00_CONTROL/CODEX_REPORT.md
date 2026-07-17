@@ -4,83 +4,60 @@
 
 ## [ЭТАП]
 
-`AS-CODEX-AUTONOMOUS-WORKER-001`
-
-После настройки worker выполнен безопасный документационный этап `AS-SMART-LINK-ROUTER-TARGET-ARCHITECTURE-001`.
+`AS-CODEX-AUTONOMOUS-WORKER-RUN-001`
 
 ## [ЧТО СДЕЛАНО]
 
-- Создан протокол автономного worker и файлы обмена `TO_CODEX.md` / `TO_CHATGPT.md`.
-- Создан PowerShell worker с отдельным локальным checkout, периодическим `git pull --ff-only`, task-hash, non-interactive `codex exec`, allowlist путей, секрет-сканом, commit и push.
-- Worker использует `workspace-write`, не включает bypass approvals/sandbox и не читает каталог секретов.
-- Добавлен `.runtime/` в `.gitignore`; checkout, state, lock и логи не попадают в GitHub.
+- Worker перестроен на два слоя: `LIGHT WATCHER` и условный `CODEX EXEC`.
+- Интервал по умолчанию изменён на 120 секунд.
+- LIGHT WATCHER читает только `ACTIVE_TASK.md` и `NEXT_TASK.md`, считает SHA-256 и сверяет локальную историю.
+- `codex exec` разрешён только для нового незавершённого SHA с точной отдельной меткой `[CHATGPT→CODEX]`.
+- SHA записывается в attempted-history до обращения к модели; ошибка того же SHA не расходует лимит каждые 2 минуты.
+- Если изменений нет, commit и push не выполняются.
+- Создан `00_CONTROL/NEXT_TASK.md` с первой задачей `AS-SMART-LINK-ROUTER-CLOUDFLARE-WORKER-PLAN-001`.
 - PowerShell syntax check пройден.
-- Повторный dry-run пройден: pull выполнен, старый task безопасно распознан как неисполняемый, Codex/commit/push не запускались.
-- После публикации пройден обычный цикл `-Once`: checkout обновлён до `f43973a`, завершённая задача корректно пропущена, Codex/commit/push не запускались.
-- Подготовлена целевая архитектура Smart Link Router без deploy и боевых изменений.
+- Два последовательных пустых LIGHT WATCHER цикла пройдены: только pull + SHA-check + exit, без Codex/commit/push.
 
-## [КАК РАБОТАЕТ WORKER]
+## [ПРОВЕРКА ПУСТОГО ЦИКЛА]
 
-```text
-GitHub main
-→ pull --ff-only
-→ точная отдельная метка [CHATGPT→CODEX]
-→ новый SHA-256 ACTIVE_TASK.md
-→ codex exec --sandbox workspace-write --ephemeral
-→ проверка разрешённых путей и секретов
-→ commit
-→ push main
-```
+Оба цикла вернули:
 
-Задача повторно не выполняется по тому же hash. Грязный checkout, неизвестный путь, секрет-риск, новый approval или ошибка останавливают push.
+`LIGHT WATCHER: no new task; exit without codex exec, commit or push.`
 
-## [БЛОКЕР АВТОНОМНОГО КАНАЛА]
+Это подтверждает, что пустой цикл не анализирует проект моделью и не расходует Codex-лимит.
 
-Worker готов принимать задачи из GitHub, но ChatGPT имеет только read-доступ и получает 403 при записи. Без writable inbox ChatGPT физически не может обновить `ACTIVE_TASK.md`; следовательно, полностью исключить ручную передачу новых задач пока нельзя.
+## [ОЧЕРЕДЬ]
 
-Нужен минимальный доступ только к task-inbox либо другой утверждённый GitHub-канал с записью. Секреты и production-доступ для этого не нужны.
+После публикации worker должен взять `NEXT_TASK.md`, потому что `ACTIVE_TASK.md` завершён. Первая задача создаёт только документ:
 
-## [SMART LINK ROUTER TARGET ARCHITECTURE]
+`06_REPORTS/CLOUDFLARE_WORKER_ROUTER_PLAN.md`.
 
-- Текущие `hr_invite` ведут прямо на Google Form и не имеют отдельного destination.
-- Прямой Form URL нельзя перенаправить на новый target без одноразового изменения самого сохранённого URL.
-- Целевая постоянная ссылка должна вести на стабильный Router hostname и содержать неизменный `link_id`.
-- Router должен выполнять строгую проверку, создавать `click_id`, писать отдельный event-log и отдавать настоящий HTTP redirect на `SITE_BASE_URL`.
-- Apps Script `HtmlService` остаётся MVP логики, но не утверждён как production runtime из-за sandbox и отсутствия надёжного автоматического top-level redirect.
-- Любая миграция начинается только с synthetic test и позднее одной заранее выбранной строки после backup и отдельных разрешений.
+## [WINDOWS SCHEDULED TASK]
 
-Полный документ: `06_REPORTS/SMART_LINK_ROUTER_TARGET_ARCHITECTURE.md`.
+Имя: `AcademyStrateg_Codex_AutonomousWorker`.
 
-## [ЧТО НУЖНО РЕШИТЬ]
+Период: каждые 2 минуты.
 
-1. Writable task-inbox для ChatGPT.
-2. Нужна ли отдельная регистрация Windows Scheduled Task для постоянного фонового запуска worker.
-3. `SITE_BASE_URL`.
-4. Production-capable Router runtime и стабильный hostname.
-5. Отдельное место и политика event-log.
-6. Позднее — отдельные разрешения на test deployment и тест одной строки.
+Команда: скрытый non-interactive PowerShell, `start_worker.ps1 -Once`.
+
+Регистрация и первый запуск выполняются после push проверенной версии worker.
 
 ## [ЧТО НЕ ТРОГАЛИ]
 
 - production Apps Script;
-- generator diff;
-- 3000 строк;
+- generator diff и 3000 строк;
 - `business_test_main`;
-- `AS-BOT__00_MAIN_ROUTER`, n8n;
-- Telegram;
-- HR-форму и HR-Zoom;
+- n8n, Telegram, HR-форму;
 - боевые таблицы;
-- deploy/publish;
-- Windows Scheduled Task.
+- Cloudflare account/resources;
+- секреты.
 
 ## [РИСКИ]
 
-- Read-only ChatGPT не может поставить новую задачу worker.
-- Foreground worker работает только пока открыт процесс PowerShell.
-- Любой non-interactive approval завершается блокером, а не ожиданием пользователя.
-- Стабильный Router URL требует runtime с настоящим HTTP redirect и hostname, не зависящим от версии deployment.
-- Массовая миграция прямых Form URL без теста одной строки может сломать воронку.
+- Scheduled Task работает от текущего Windows-пользователя и зависит от сохранённых Git/Codex авторизаций.
+- Один неуспешный SHA автоматически не повторяется; для явного retry нужно изменить task-файл.
+- Dirty checkout или unpushed commit останавливает watcher до ручной проверки.
 
 ## [ОДИН СЛЕДУЮЩИЙ ШАГ]
 
-Выдать ChatGPT минимальный writable task-inbox; production Router пока не deploy и строки не менять.
+Запушить worker/queue, зарегистрировать Scheduled Task и проверить появление Cloudflare Router plan в GitHub.

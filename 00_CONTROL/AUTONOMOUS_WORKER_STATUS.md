@@ -10,6 +10,14 @@
 - powershell_parse_check = passed
 - worker_local_dry_run = passed
 - worker_one_cycle_validation = passed
+- two_layer_worker_code = validated
+- two_empty_light_cycles = passed
+- light_watcher_interval_seconds = 120
+- reads_active_task = yes
+- reads_next_task = yes
+- codex_exec_on_empty_cycle = no
+- commit_push_on_empty_cycle = no
+- next_task_id = `AS-SMART-LINK-ROUTER-CLOUDFLARE-WORKER-PLAN-001`
 - last_dry_run_utc = `2026-07-17T03:37:34Z`
 - last_safe_cycle_utc = `2026-07-17T03:41:04Z`
 - worker_background_process_started = no
@@ -21,6 +29,14 @@
 - secrets_in_repository = no
 
 ## [ПРОВЕРЕННОЕ ПОВЕДЕНИЕ]
+
+Two-layer validation 2026-07-17:
+
+- PowerShell parse: passed;
+- empty LIGHT WATCHER cycle 1: pull + SHA-check + exit;
+- empty LIGHT WATCHER cycle 2: pull + SHA-check + exit;
+- `codex exec`: not started;
+- commit/push: not started.
 
 Dry-run:
 
@@ -45,16 +61,16 @@ Dry-run:
 
 ## [БЛОКЕР ПОЛНОЙ АВТОНОМНОСТИ]
 
-ChatGPT сейчас получает `403 Resource not accessible by integration` при попытке записи. Пока нет writable task-inbox, ChatGPT не может самостоятельно поставить worker новую задачу. Polling не устраняет отсутствие входного канала.
+ChatGPT write в GitHub не используется: `403 Resource not accessible by integration` подтверждён даже при включённом разрешении действий. Очередь задач ведётся через `ACTIVE_TASK.md` и `NEXT_TASK.md` в локальном/доверенном контуре Codex.
 
 ## [ФОНОВЫЙ ЗАПУСК]
 
-Постоянный процесс или Windows Scheduled Task не запускался. Скрипт готов к foreground-запуску; регистрация Scheduled Task является отдельным постоянным изменением Windows и требует отдельного решения.
+Регистрация Windows Scheduled Task `AcademyStrateg_Codex_AutonomousWorker` с периодом 2 минуты разрешена задачей `AS-CODEX-AUTONOMOUS-WORKER-RUN-001` и будет выполнена после push проверенной версии.
 
 ## [ТЕКУЩИЙ TASK]
 
-`AS-SMART-LINK-ROUTER-TARGET-ARCHITECTURE-001` выполнен в текущем доверенном сеансе как локальная документация. Production-действий не было.
+В `NEXT_TASK.md` поставлена первая очередь: `AS-SMART-LINK-ROUTER-CLOUDFLARE-WORKER-PLAN-001`. Production-действия запрещены.
 
 ## [ОДИН СЛЕДУЮЩИЙ ШАГ]
 
-Дать ChatGPT минимальный writable task-inbox или утвердить другой записываемый канал постановки задач.
+Проверить два пустых LIGHT WATCHER цикла, запушить worker/queue и зарегистрировать Windows Scheduled Task каждые 2 минуты.
