@@ -1,0 +1,25 @@
+# LAST REPORT POINTER
+
+Последний рабочий отчёт:
+
+```text
+06_REPORTS/AS-OWNER-RAZBOR-SALES-MVP__06_DEEP_SALES_PREBRIEF_AND_E2E_DEMO_REPORT.md
+```
+
+Экспертный demo-пакет:
+
+```text
+10_ARCHITECTURE/OWNER_RAZBOR_E2E_DEMO/EXPERT_PACKET_DEMO.md
+```
+
+Сообщения собственника:
+
+```text
+10_ARCHITECTURE/OWNER_RAZBOR_E2E_DEMO/OWNER_MESSAGES_DEMO.md
+```
+
+Последний служебный отчёт по связи Codex ↔ ChatGPT:
+
+```text
+06_REPORTS/AS-OWNER-RAZBOR-SALES-MVP__00_CODEX_CHATGPT_LINK_PROTOCOL_REPORT.md
+```
