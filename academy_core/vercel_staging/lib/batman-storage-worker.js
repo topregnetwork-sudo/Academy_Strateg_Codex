@@ -1,5 +1,13 @@
 const { ensurePrivateFolder } = require('./yandex-disk')
 
+function resolveStoragePath(rootPath, folderPath) {
+  const root = String(rootPath || '').trim().replace(/^\/+|\/+$/g, '')
+  const folder = String(folderPath || '').trim().replace(/^\/+|\/+$/g, '')
+  if (!folder) throw new Error('candidate_folder_path_not_configured')
+  if (!root || folder === root || folder.startsWith(`${root}/`)) return folder
+  return `${root}/${folder}`
+}
+
 function safeErrorCode(error) {
   return String(error?.code || error?.message || 'storage_worker_failed')
     .toLowerCase()
@@ -99,7 +107,7 @@ function createStorageRepository(pool) {
   }
 }
 
-async function processStorageJob({ job, repository, oauthToken, fetchImpl = fetch }) {
+async function processStorageJob({ job, repository, oauthToken, rootPath, fetchImpl = fetch }) {
   if (job.operation !== 'create_candidate_folder') {
     const error = new Error('storage_operation_not_implemented')
     error.code = 'operation_not_implemented'
@@ -107,7 +115,8 @@ async function processStorageJob({ job, repository, oauthToken, fetchImpl = fetc
     return { state: 'failed', jobId: job.id, error: safeErrorCode(error) }
   }
   try {
-    const resource = await ensurePrivateFolder(job.folder_path, oauthToken, fetchImpl)
+    const targetPath = resolveStoragePath(rootPath, job.folder_path)
+    const resource = await ensurePrivateFolder(targetPath, oauthToken, fetchImpl)
     await repository.markFolderDelivered(job, resource)
     return {
       state: 'delivered',
@@ -125,10 +134,10 @@ async function processStorageJob({ job, repository, oauthToken, fetchImpl = fetc
   }
 }
 
-async function runStorageWorkerOnce({ repository, oauthToken, fetchImpl = fetch }) {
+async function runStorageWorkerOnce({ repository, oauthToken, rootPath, fetchImpl = fetch }) {
   const job = await repository.leaseNext()
   if (!job) return { state: 'idle' }
-  return processStorageJob({ job, repository, oauthToken, fetchImpl })
+  return processStorageJob({ job, repository, oauthToken, rootPath, fetchImpl })
 }
 
-module.exports = { safeErrorCode, createStorageRepository, processStorageJob, runStorageWorkerOnce }
+module.exports = { safeErrorCode, resolveStoragePath, createStorageRepository, processStorageJob, runStorageWorkerOnce }

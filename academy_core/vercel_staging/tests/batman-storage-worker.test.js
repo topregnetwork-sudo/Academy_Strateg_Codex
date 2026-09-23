@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { databaseConfig, liveGates } = require('../lib/batman-runtime-config')
 const { ensurePrivateFolder } = require('../lib/yandex-disk')
-const { processStorageJob, runStorageWorkerOnce } = require('../lib/batman-storage-worker')
+const { processStorageJob, resolveStoragePath, runStorageWorkerOnce } = require('../lib/batman-storage-worker')
 
 function response(status, body = '') {
   return new Response(body ? JSON.stringify(body) : '', {
@@ -28,6 +28,14 @@ test('database requires a verified CA and does not disable TLS verification', ()
   const config = databaseConfig({ BATMAN_DATABASE_URL: 'postgresql://synthetic.invalid/db', BATMAN_DATABASE_CA_PEM_BASE64: ca })
   assert.equal(config.ssl.rejectUnauthorized, true)
   assert.match(config.ssl.ca, /BEGIN CERTIFICATE/)
+})
+
+test('resolves an outbox path below the protected storage root exactly once', () => {
+  const root = 'Academy Strateg — защищённое хранилище'
+  const relative = '00 Кандидаты — именные папки/Синтетический кандидат — HR-0143'
+  const resolved = `${root}/${relative}`
+  assert.equal(resolveStoragePath(root, relative), resolved)
+  assert.equal(resolveStoragePath(root, resolved), resolved)
 })
 
 test('creates one private folder and proves exact path by readback', async () => {
@@ -82,9 +90,10 @@ test('worker marks a synthetic folder delivered only after readback', async () =
   const result = await runStorageWorkerOnce({
     repository,
     oauthToken: 'synthetic-oauth',
+    rootPath: 'Academy Strateg — защищённое хранилище',
     fetchImpl: async (_url, options) => options.method === 'PUT' ? response(201) : response(200, {
       name: 'Синтетический кандидат — HR-0143',
-      path: 'disk:/00 Кандидаты — именные папки/Синтетический кандидат — HR-0143',
+      path: 'disk:/Academy Strateg — защищённое хранилище/00 Кандидаты — именные папки/Синтетический кандидат — HR-0143',
       type: 'dir',
       resource_id: 'synthetic-resource-id',
     }),
@@ -106,7 +115,7 @@ test('worker records a bounded error without exposing response bodies', async ()
     async markFailed(_job, error) { transitions.push(error) },
   }
   const result = await processStorageJob({
-    job, repository, oauthToken: 'synthetic-oauth',
+    job, repository, oauthToken: 'synthetic-oauth', rootPath: 'Academy Strateg — защищённое хранилище',
     fetchImpl: async () => response(401, { error: 'UnauthorizedError', description: 'secret body must not be persisted' }),
   })
   assert.equal(result.state, 'failed')

@@ -10,7 +10,11 @@ async function main() {
   const pool = new Pool(dbConfig)
   try {
     const repository = createStorageRepository(pool)
-    const result = await runStorageWorkerOnce({ repository, oauthToken: diskConfig.oauthToken })
+    const result = await runStorageWorkerOnce({
+      repository,
+      oauthToken: diskConfig.oauthToken,
+      rootPath: diskConfig.rootPath,
+    })
     process.stdout.write(`${JSON.stringify(result)}\n`)
   } finally {
     await pool.end()

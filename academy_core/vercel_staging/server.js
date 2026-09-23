@@ -1,8 +1,7 @@
 const http = require('node:http');
 const { Pool } = require('pg');
-const { loadBatmanDatabaseConfig, loadYandexDiskConfig } = require('./lib/batman-runtime-config');
-const { createPostgresStorageRepository, runStorageWorkerOnce } = require('./lib/batman-storage-worker');
-const { createYandexDiskClient } = require('./lib/yandex-disk');
+const { databaseConfig, yandexDiskConfig, liveGates } = require('./lib/batman-runtime-config');
+const { createStorageRepository, runStorageWorkerOnce } = require('./lib/batman-storage-worker');
 
 const port = Number(process.env.PORT || 8080);
 const host = '0.0.0.0';
@@ -14,20 +13,24 @@ const runtimeState = {
 };
 
 async function runBoundedWorker() {
-  if (process.env.BATMAN_STORAGE_WORKER_ENABLED !== 'true') {
+  if (!liveGates(process.env).storageWorker) {
     runtimeState.storageWorker = 'disabled';
     return;
   }
 
-  const pool = new Pool(loadBatmanDatabaseConfig(process.env));
+  const pool = new Pool(databaseConfig(process.env));
   try {
     await pool.query('select 1');
     runtimeState.database = 'ready';
-    const repository = createPostgresStorageRepository(pool);
-    const disk = createYandexDiskClient(loadYandexDiskConfig(process.env));
-    const result = await runStorageWorkerOnce({ repository, disk });
-    runtimeState.storageWorker = result ? result.deliveryState : 'idle';
-    runtimeState.lastOperationId = result?.operationId || null;
+    const repository = createStorageRepository(pool);
+    const disk = yandexDiskConfig(process.env);
+    const result = await runStorageWorkerOnce({
+      repository,
+      oauthToken: disk.oauthToken,
+      rootPath: disk.rootPath,
+    });
+    runtimeState.storageWorker = result?.state || 'idle';
+    runtimeState.lastOperationId = result?.jobId || null;
   } catch (error) {
     runtimeState.database = runtimeState.database === 'ready' ? 'ready' : 'failed';
     runtimeState.storageWorker = 'failed';
