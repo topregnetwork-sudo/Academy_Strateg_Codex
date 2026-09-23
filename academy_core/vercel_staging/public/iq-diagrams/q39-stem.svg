@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 150" role="img" aria-labelledby="title desc">
+  <title id="title">Условие графической аналогии</title>
+  <desc id="desc">Четыре раздельных квадрата преобразуются в четыре соединённых квадратом окружности; требуется применить правило к квадратам, соединённым диагоналями.</desc>
+  <g fill="none" stroke="#10233f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(18 24)">
+      <rect x="0" y="0" width="22" height="22"/>
+      <rect x="88" y="0" width="22" height="22"/>
+      <rect x="0" y="80" width="22" height="22"/>
+      <rect x="88" y="80" width="22" height="22"/>
+    </g>
+    <path d="M148 75h38m-12-12 12 12-12 12"/>
+    <g transform="translate(218 24)">
+      <path d="M11 11h88v80H11z"/>
+      <circle cx="11" cy="11" r="11" fill="#fff"/>
+      <circle cx="99" cy="11" r="11" fill="#fff"/>
+      <circle cx="11" cy="91" r="11" fill="#fff"/>
+      <circle cx="99" cy="91" r="11" fill="#fff"/>
+    </g>
+    <g transform="translate(389 24)">
+      <path d="M11 11l88 80M99 11 11 91"/>
+      <rect x="0" y="0" width="22" height="22" fill="#fff"/>
+      <rect x="88" y="0" width="22" height="22" fill="#fff"/>
+      <rect x="0" y="80" width="22" height="22" fill="#fff"/>
+      <rect x="88" y="80" width="22" height="22" fill="#fff"/>
+    </g>
+    <path d="M530 75h38m-12-12 12 12-12 12"/>
+  </g>
+  <text x="349" y="84" fill="#10233f" font-family="Segoe UI,Arial,sans-serif" font-size="30" font-weight="700">:</text>
+  <text x="587" y="85" fill="#10233f" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="700">?</text>
+</svg>

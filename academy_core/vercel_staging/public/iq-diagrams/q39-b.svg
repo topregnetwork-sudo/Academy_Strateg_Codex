@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 120" role="img" aria-label="Четыре окружности, соединённые квадратом и диагоналями">
+  <g fill="none" stroke="#10233f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(10 5)">
+    <path d="M11 11h88v88H11zM11 11l88 88M99 11 11 99"/>
+    <circle cx="11" cy="11" r="10" fill="#fff"/><circle cx="99" cy="11" r="10" fill="#fff"/>
+    <circle cx="11" cy="99" r="10" fill="#fff"/><circle cx="99" cy="99" r="10" fill="#fff"/>
+  </g>
+</svg>

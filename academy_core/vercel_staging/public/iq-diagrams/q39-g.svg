@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 120" role="img" aria-label="Четыре квадрата, соединённые квадратом">
+  <g fill="none" stroke="#10233f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(10 5)">
+    <path d="M11 11h88v88H11z"/>
+    <rect x="1" y="1" width="20" height="20" fill="#fff"/><rect x="89" y="1" width="20" height="20" fill="#fff"/>
+    <rect x="1" y="89" width="20" height="20" fill="#fff"/><rect x="89" y="89" width="20" height="20" fill="#fff"/>
+  </g>
+</svg>

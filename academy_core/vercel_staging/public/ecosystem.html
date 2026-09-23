@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Служебный пульт сквозной проверки — Академия Стратег</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230c2135'/%3E%3Cpath d='M12 23l12 4 8-13 8 13 12-4-6 13 6 14-20-8-20 8 6-14z' fill='%23e8b546'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/ecosystem.css?v=3">
+    <link rel="stylesheet" href="/ui-shell-v2.css?v=1">
+  </head>
+  <body>
+    <header class="shell topbar">
+      <a class="brand" href="/ecosystem.html" aria-label="Академия Стратег"><img class="brand-logo" src="/academy-strateg-logo-transparent.png" alt="Логотип Академии Стратег"><span>Академия Стратег<small>Служебный синтетический стенд</small></span></a>
+      <div class="identity"><span class="status-dot"></span> Служебный режим · синтетика</div>
+    </header>
+
+    <main class="shell">
+      <section class="architecture-alert">
+        <div><b>Служебный пульт, не кабинет Batman</b><span>Здесь оператор проверяет связность отдельных пользовательских страниц.</span></div>
+        <button class="text-button" data-view="architecture">Показать архитектуру</button>
+      </section>
+
+      <nav class="tabs" aria-label="Разделы стенда">
+        <a class="tab active" href="/batman.html">Открыть кабинет Batman</a>
+        <button class="tab" data-view="events">Мероприятия</button>
+        <a class="tab" href="/business-test.html">Страница «Бизнес-тест»</a>
+        <a class="tab" href="/speaker.html">Рабочее место спикера</a>
+        <a class="tab" href="/event-builder.html">Конструктор мероприятий</a>
+        <a class="tab" href="/expert.html">Кабинет эксперта</a>
+        <a class="tab" href="/academy-dashboard.html">Общий кабинет</a>
+        <button class="tab" data-view="ledger">Служебный журнал доказательств</button>
+      </nav>
+
+      <section class="view active" id="view-batman">
+        <div class="page-heading"><div><p class="kicker">АКТИВНЫЙ BATMAN</p><h1>Добрый день, Тестовый Batman</h1><p>Выберите мероприятие, подготовьте публикацию и проверьте путь приглашённого собственника.</p></div><div class="metric"><b id="result-count">0</b><span>подтверждённых результатов</span></div></div>
+
+        <div class="grid hero-grid">
+          <article class="card personal-card">
+            <div class="card-head"><div><p class="kicker">ЛИЧНАЯ ВИТРИНА</p><h2>Ваш постоянный код</h2></div><span class="code">7K4M</span></div>
+            <p>Одна витрина показывает актуальные мероприятия, бизнес-тест и разрешённые приглашения. В каждой целевой ссылке сохраняется ваш код.</p>
+            <div class="url-line"><code>demo.academy/a/7K4M</code><button data-copy="demo.academy/a/7K4M">Копировать</button></div>
+            <div class="mini-actions"><button class="soft" data-view="owner">Открыть как собственник</button><button class="soft" data-view="events">Каталог мероприятий</button></div>
+          </article>
+
+          <article class="card progress-card">
+            <p class="kicker">КАК СЧИТАЕТСЯ РЕЗУЛЬТАТ</p>
+            <ol class="steps">
+              <li class="done"><span>1</span><div><b>Ссылка запрошена</b><small>btm_id и витрина выданы</small></div></li>
+              <li id="step-share"><span>2</span><div><b>Публикация подготовлена</b><small>ожидает действия</small></div></li>
+              <li id="step-open"><span>3</span><div><b>Внешний переход</b><small>ожидает перехода</small></div></li>
+              <li id="step-result"><span>4</span><div><b>Регистрация или тест</b><small>ожидает результата</small></div></li>
+            </ol>
+          </article>
+        </div>
+
+        <section class="section-title"><div><p class="kicker">КОНТЕНТ-СТУДИЯ</p><h2>Подготовить публикацию</h2></div><span class="safe-badge">Hermes готовит · вы утверждаете</span></section>
+        <div class="studio">
+          <div class="studio-controls">
+            <label>Мероприятие<select id="studio-event"></select></label>
+            <label>Канал<select id="studio-channel"><option>Telegram</option><option>VK</option><option>WhatsApp Status</option><option>Instagram Story</option><option>LinkedIn</option></select></label>
+            <label>Генератор<select id="studio-provider"><option>YandexGPT + YandexART</option><option>GigaChat</option><option>Codex через Hermes</option><option>Локальный черновик</option></select></label>
+            <label>Тон<select id="studio-tone"><option>Деловой и конкретный</option><option>Личный и дружелюбный</option><option>Энергичный анонс</option></select></label>
+            <button class="primary" id="generate">Сгенерировать варианты</button>
+            <p class="hint">Это безопасная имитация: внешняя модель не вызывается, публикация никуда не отправляется.</p>
+          </div>
+          <div class="preview" id="creative-preview">
+            <div class="preview-empty"><span>✦</span><b>Здесь появится публикация</b><small>Выберите настройки и запустите генерацию</small></div>
+          </div>
+        </div>
+
+        <section class="section-title"><div><p class="kicker">МОИ КАНАЛЫ</p><h2>Где я распространяю</h2></div></section>
+        <div class="channel-grid" id="channels"></div>
+      </section>
+
+      <section class="view" id="view-events">
+        <div class="page-heading"><div><p class="kicker">EVENT CATALOG</p><h1>Мероприятия Академии</h1><p>Все города видны вместе. Онлайн доступен из любого города, офлайн фильтруется по выбору посетителя.</p></div></div>
+        <div class="filters"><button class="filter active" data-filter="all">Все</button><button class="filter" data-filter="online">Онлайн</button><button class="filter" data-filter="Челябинск">Челябинск</button><button class="filter" data-filter="Ижевск">Ижевск</button></div>
+        <div class="event-grid" id="event-grid"></div>
+      </section>
+
+      <section class="view" id="view-owner">
+        <div class="owner-hero">
+          <div><p class="kicker">ВАС ПРИГЛАСИЛ BATMAN 7K4M</p><h1>Первый шаг к системному бизнесу</h1><p>Выберите: записаться на ближайшее мероприятие, пройти бизнес-тест заранее или сначала познакомиться с Академией.</p></div>
+          <div class="owner-score"><strong>Бизнес-тест</strong><small>результат для разбора</small></div>
+        </div>
+        <div class="owner-grid">
+          <article class="card featured" id="owner-event-card"></article>
+          <article class="card"><p class="kicker">ДО МЕРОПРИЯТИЯ</p><h2>Пройти бизнес-тест</h2><p>Результат поможет сформулировать вопросы к мастер-классу. Спикер увидит только разрешённую краткую карточку после вашего согласия.</p><button class="primary" id="complete-test">Пройти синтетический тест</button><small class="privacy">В демонстрации используются только вымышленные данные.</small></article>
+          <article class="card"><p class="kicker">ПОЗНАКОМИТЬСЯ</p><h2>Материалы Академии</h2><ul class="plain-list"><li>Как выйти из операционного управления</li><li>Семь инструментов системного бизнеса</li><li>Отзывы и проверенные истории</li></ul><button class="soft" id="open-material">Открыть вводный материал</button></article>
+        </div>
+      </section>
+
+      <section class="view" id="view-speaker">
+        <div class="page-heading"><div><p class="kicker">ДОСТУП СПИКЕРА · СИНТЕТИКА</p><h1>Подготовка к мастер-классу</h1><p>Только зарегистрированные участники и только разрешённые данные. Контакты, полные ответы и внутренние заметки скрыты.</p></div><span class="safe-badge">минимальный доступ</span></div>
+        <div class="speaker-summary"><div><b id="speaker-registered">0</b><span>зарегистрировано</span></div><div><b id="speaker-tested">0</b><span>прошли тест</span></div><div><b>0</b><span>посещение подтверждено</span></div></div>
+        <div id="attendees" class="attendees"></div>
+      </section>
+
+      <section class="view" id="view-ledger">
+        <div class="page-heading"><div><p class="kicker">EVENT & ATTRIBUTION LEDGER</p><h1>Что система действительно доказала</h1><p>Просмотр, генерация, отправка, регистрация, тест и посещение не смешиваются.</p></div><button class="soft" id="reset-demo">Сбросить синтетику</button></div>
+        <div class="ledger" id="ledger"></div>
+      </section>
+
+      <section class="view" id="view-architecture">
+        <div class="page-heading"><div><p class="kicker">АРХИТЕКТУРА V1.4</p><h1>Как связаны контуры</h1><p>Новая механика дополняет утверждённое ядро и не объединяет пользовательские боты.</p></div></div>
+        <div class="architecture-map">
+          <div class="arch-node source"><b>Источники</b><span>HH · VK · Telegram · рекомендации</span></div><i>→</i>
+          <div class="arch-node batman"><b>Batman</b><span>btm_id · витрина · контент</span></div><i>→</i>
+          <div class="arch-node events"><b>Events</b><span>каталог · registration · attendance</span></div><i>→</i>
+          <div class="arch-node owner"><b>Owner</b><span>owner_id · тест · квалификация</span></div><i>→</i>
+          <div class="arch-node review"><b>Разбор</b><span>спикер · эксперт · предложение</span></div>
+        </div>
+        <div class="boundary-grid">
+          <article><b>Неизменно</b><p>Первый `btm_id_referrer`, отдельные Owner/Batman/Trainer боты, версии результатов, human approval.</p></article>
+          <article><b>Добавлено</b><p>Event Catalog, content studio, channel preferences, speaker view и единый журнал доказательств.</p></article>
+          <article><b>Пока выключено</b><p>Реальные Telegram/VK отправки, AI API, Tilda submission, оплата, production webhooks и реальные ПДн.</p></article>
+        </div>
+        <button class="primary" data-view="batman">Вернуться в кабинет Batman</button>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/ecosystem.js" defer></script>
+  </body>
+</html>
+

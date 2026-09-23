@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Тест на воспроизведение — Академия Стратег</title>
+  <link rel="stylesheet" href="/reproduction-test-v2.css?v=4">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/reproduction-test.html"><img src="/academy-strateg-logo-transparent.png" alt="Академия Стратег"><span>Академия Стратег<small>Тестирование кандидата</small></span></a>
+    <div class="candidate" id="candidate-name"></div>
+  </header>
+  <main>
+    <section class="panel intro" id="intro-view">
+      <p class="eyebrow">ТЕСТИРОВАНИЕ</p>
+      <h1>Тест на воспроизведение</h1>
+      <p class="lead">В тесте 12 заданий разных типов. Выполняйте их самостоятельно, без пауз и без дополнительной информации.</p>
+      <div class="notice"><strong>Время учитывается</strong><span>Ограничения времени нет, но оценка зависит от скорости выполнения и точности следования каждой инструкции. Нажмите «Завершить тест» сразу после выполнения последнего задания.</span></div>
+      <label class="ack"><input type="checkbox" id="acknowledge"><span>Я прочитал(а) инструкцию и готов(а) начать</span></label>
+      <button class="primary" id="start-button" disabled>Начать тест</button>
+    </section>
+
+    <section id="test-view" hidden>
+      <div class="testbar">
+        <div><span id="progress-label">Задание 1 из 12</span><div class="progress"><i id="progress-fill"></i></div></div>
+        <div class="timer" id="timer">00:00</div>
+      </div>
+      <article class="panel task-panel">
+        <div id="task-content"></div>
+        <footer class="actions"><button class="secondary" id="prev-button">Назад</button><button class="primary" id="next-button">Далее</button><button class="primary" id="finish-button" hidden>Завершить тест</button></footer>
+      </article>
+      <nav class="task-map" id="task-map" aria-label="Навигация по заданиям"></nav>
+    </section>
+
+    <section class="panel complete" id="complete-view" hidden>
+      <div class="complete-mark">✓</div>
+      <h1>Спасибо! Тест завершён.</h1>
+      <p>Ваши ответы приняты.</p>
+    </section>
+  </main>
+  <script src="/reproduction-test.js?v=9" defer></script>
+</body>
+</html>

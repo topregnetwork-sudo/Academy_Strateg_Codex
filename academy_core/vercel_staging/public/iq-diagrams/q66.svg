@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 440" role="img" aria-labelledby="title desc">
+  <title id="title">Графическая аналогия к вопросу 66</title>
+  <desc id="desc">Три исходные вложенные фигуры и четыре варианта ответа.</desc>
+  <defs>
+    <style>
+      .shape{fill:none;stroke:#263341;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+      .mark{fill:#263341;font:600 25px "Segoe UI",Arial,sans-serif}
+      .key{fill:#263341;font:600 21px "Segoe UI",Arial,sans-serif}
+    </style>
+  </defs>
+
+  <!-- Исходная аналогия: квадрат–круг–квадрат : круг–квадрат–круг -->
+  <g class="shape" transform="translate(48 36)">
+    <rect x="0" y="0" width="126" height="126"/>
+    <circle cx="63" cy="63" r="53"/>
+    <rect x="27" y="27" width="72" height="72"/>
+  </g>
+  <g class="shape" transform="translate(264 36)">
+    <circle cx="63" cy="63" r="63"/>
+    <rect x="18.5" y="18.5" width="89" height="89"/>
+    <circle cx="63" cy="63" r="36"/>
+  </g>
+  <g aria-hidden="true" fill="#263341">
+    <circle cx="218" cy="87" r="4"/><circle cx="218" cy="111" r="4"/>
+    <circle cx="422" cy="87" r="4"/><circle cx="422" cy="111" r="4"/>
+    <circle cx="442" cy="87" r="4"/><circle cx="442" cy="111" r="4"/>
+  </g>
+
+  <!-- Третья фигура: квадрат–ромб–круг -->
+  <g class="shape" transform="translate(482 36)">
+    <rect x="0" y="0" width="126" height="126"/>
+    <path d="M63 8L118 63L63 118L8 63Z"/>
+    <circle cx="63" cy="63" r="31"/>
+  </g>
+  <text class="mark" x="675" y="109">?</text>
+  <g aria-hidden="true" fill="#263341">
+    <circle cx="650" cy="87" r="4"/><circle cx="650" cy="111" r="4"/>
+  </g>
+
+  <!-- Варианты ответа. Буквы сохранены только как краткие ключи. -->
+  <g transform="translate(35 244)">
+    <text class="key" x="63" y="171" text-anchor="middle">а</text>
+    <g class="shape">
+      <rect x="0" y="0" width="126" height="126"/>
+      <circle cx="63" cy="63" r="53"/>
+      <path d="M63 13L113 63L63 113L13 63Z"/>
+    </g>
+  </g>
+  <g transform="translate(249 244)">
+    <text class="key" x="63" y="171" text-anchor="middle">б</text>
+    <g class="shape">
+      <rect x="0" y="0" width="126" height="126"/>
+      <path d="M63 8L118 63L63 118L8 63Z"/>
+      <circle cx="18" cy="18" r="8"/>
+      <circle cx="108" cy="18" r="8"/>
+      <circle cx="18" cy="108" r="8"/>
+      <circle cx="108" cy="108" r="8"/>
+    </g>
+  </g>
+  <g transform="translate(463 244)">
+    <text class="key" x="63" y="171" text-anchor="middle">в</text>
+    <g class="shape">
+      <rect x="0" y="0" width="126" height="126"/>
+      <circle cx="63" cy="63" r="53"/>
+      <circle cx="63" cy="63" r="38"/>
+    </g>
+  </g>
+  <g transform="translate(677 244)">
+    <text class="key" x="63" y="171" text-anchor="middle">г</text>
+    <g class="shape">
+      <circle cx="63" cy="63" r="63"/>
+      <path d="M63 7L119 63L63 119L7 63Z"/>
+      <rect x="35" y="35" width="56" height="56"/>
+    </g>
+  </g>
+</svg>

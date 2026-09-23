@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" role="img" aria-labelledby="title desc">
+  <title id="title">Графическая аналогия с квадратами, кругами и линиями</title>
+  <desc id="desc">Исходная пара и четыре варианта: а, б, в, г.</desc>
+  <style>.s{fill:#fff;stroke:#10233f;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}.l{fill:none;stroke:#10233f;stroke-width:3.5}.t{font:700 20px 'Segoe UI',sans-serif;fill:#10233f}.m{font:600 15px 'Segoe UI',sans-serif;fill:#617087}</style>
+  <text class="m" x="36" y="28">ОБРАЗЕЦ</text>
+  <g transform="translate(48 60)"><rect class="s" x="0" y="0" width="22" height="22"/><rect class="s" x="100" y="0" width="22" height="22"/><rect class="s" x="0" y="100" width="22" height="22"/><rect class="s" x="100" y="100" width="22" height="22"/></g>
+  <text class="t" x="205" y="126">→</text>
+  <g transform="translate(268 60)"><path class="l" d="M11 11 H111 V111 H11 Z"/><circle class="s" cx="11" cy="11" r="11"/><circle class="s" cx="111" cy="11" r="11"/><circle class="s" cx="11" cy="111" r="11"/><circle class="s" cx="111" cy="111" r="11"/></g>
+  <text class="t" x="431" y="126">:</text>
+  <g transform="translate(492 60)"><path class="l" d="M11 11 L111 111 M111 11 L11 111"/><rect class="s" x="0" y="0" width="22" height="22"/><rect class="s" x="100" y="0" width="22" height="22"/><rect class="s" x="0" y="100" width="22" height="22"/><rect class="s" x="100" y="100" width="22" height="22"/></g>
+  <text class="t" x="660" y="126">→ ?</text>
+  <line x1="36" y1="224" x2="764" y2="224" stroke="#dbe3ed" stroke-width="2"/>
+  <text class="m" x="36" y="253">ВАРИАНТЫ</text>
+  <g transform="translate(65 290)"><text class="t" x="-28" y="55">а</text><path class="l" d="M11 11 L101 101 M101 11 L11 101"/><circle class="s" cx="11" cy="11" r="10"/><circle class="s" cx="101" cy="11" r="10"/><circle class="s" cx="11" cy="101" r="10"/><circle class="s" cx="101" cy="101" r="10"/></g>
+  <g transform="translate(255 290)"><text class="t" x="-28" y="55">б</text><path class="l" d="M11 11 H101 V101 H11 Z M11 11 L101 101 M101 11 L11 101"/><circle class="s" cx="11" cy="11" r="10"/><circle class="s" cx="101" cy="11" r="10"/><circle class="s" cx="11" cy="101" r="10"/><circle class="s" cx="101" cy="101" r="10"/></g>
+  <g transform="translate(450 290)"><text class="t" x="-28" y="55">в</text><path class="l" d="M11 11 H101 V101 H11 Z M11 11 L101 101 M101 11 L11 101"/><rect class="s" x="1" y="1" width="20" height="20"/><rect class="s" x="91" y="1" width="20" height="20"/><rect class="s" x="1" y="91" width="20" height="20"/><rect class="s" x="91" y="91" width="20" height="20"/></g>
+  <g transform="translate(645 290)"><text class="t" x="-28" y="55">г</text><path class="l" d="M11 11 H101 V101 H11 Z"/><rect class="s" x="1" y="1" width="20" height="20"/><rect class="s" x="91" y="1" width="20" height="20"/><rect class="s" x="1" y="91" width="20" height="20"/><rect class="s" x="91" y="91" width="20" height="20"/></g>
+</svg>

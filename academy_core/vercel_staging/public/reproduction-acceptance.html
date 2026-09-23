@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Приёмка теста на воспроизведение — Академия Стратег</title>
+  <link rel="stylesheet" href="/reproduction-acceptance.css?v=1">
+</head>
+<body>
+  <header><div><strong>Академия Стратег</strong><span>Приёмка теста на воспроизведение</span></div><output id="summary">0 из 18 проверено</output></header>
+  <main>
+    <section class="preview">
+      <div class="preview-head"><h1>Рабочий тест</h1><button id="reload-test" type="button">Начать заново</button></div>
+      <iframe id="test-frame" title="Тест на воспроизведение" src="/reproduction-test.html?rev=53&assignment_id=owner-acceptance&candidate_name=Проверка%20владельцем"></iframe>
+    </section>
+    <aside>
+      <div class="intro"><h1>Чек-лист владельца</h1><p>Пройдите тест слева. По каждому пункту выберите «Принять» или «Исправить». При исправлении напишите, что именно не совпадает.</p></div>
+      <div id="checklist"></div>
+      <section class="artifacts">
+        <h2>Бланки ручной обработки</h2>
+        <code>output/pdf/REPRODUCTION__sample-answer-sheet.pdf</code>
+        <code>output/ASSESSMENT__manual-review-workbook.xlsx · вкладка «Воспроизведение»</code>
+        <p>Файлы открываются отдельными вкладками в Codex рядом с этой сессией.</p>
+      </section>
+      <div class="final-actions"><button id="copy-result" type="button">Скопировать итог приёмки</button><button id="reset-review" class="secondary" type="button">Очистить решения</button></div>
+      <textarea id="result" readonly aria-label="Итог приёмки"></textarea>
+    </aside>
+  </main>
+  <script src="/reproduction-acceptance.js?v=1" defer></script>
+</body>
+</html>

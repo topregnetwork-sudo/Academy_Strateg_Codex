@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Штаб проектов — Академия Стратег</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div><p class="eyebrow">ACADEMY STRATEG · ЗАЩИЩЁННЫЙ STAGING</p><h1>Штаб Стратег</h1><p class="subtitle">Единая карта проектов, задач, решений и истории — без личных данных и без внешних действий.</p></div>
+      <div class="account" id="account">Проверяю доступ…</div>
+    </header>
+    <main>
+      <section class="notice" id="notice" hidden></section>
+      <section class="intro" id="signed-out" hidden>
+        <h2>Вход владельца</h2>
+        <p>После входа можно создавать задачи с компьютера или телефона; история комментариев не перезаписывается.</p>
+        <form id="password-form" hidden><label>Код доступа владельца<input type="password" name="password" autocomplete="current-password" required></label><button class="primary" type="submit">Открыть Штаб</button></form>
+        <button class="secondary" id="sign-in" hidden>Войти через Vercel</button>
+      </section>
+      <section class="intro" id="not-configured" hidden>
+        <h2>Подключение Vercel ещё не завершено</h2>
+        <p>Интерфейс и защищённое хранилище уже готовы. Остаётся зарегистрировать в Vercel приложение входа — только тогда кнопки записи станут доступны именно вам, а не любому посетителю ссылки.</p>
+        <p class="small">Сервис изолирован: здесь хранятся только метаданные проектов и задач. Анкеты, кандидаты, Telegram, платежи и действующие воронки не подключены.</p>
+      </section>
+      <section id="workspace" hidden>
+        <section class="context-note"><b>Что это за экран:</b> это серверная версия вашей прежней карты «Штаб Стратег». Она сохраняет версии комментариев, предложения и одобрения для одного владельца на телефоне и компьютере. Сама по себе карточка не отправляет сообщения в Telegram, не меняет воронки и не запускает работы без отдельного одобрения.</section>
+        <section class="context-note"><b>Новый синтетический стенд:</b> <a href="/ecosystem.html">открыть кабинет Batman, каталог мероприятий, генератор публикаций и кабинет спикера</a>. Данные вымышленные, внешние отправки отключены.</section>
+        <section class="funnel-overview" aria-labelledby="funnel-heading"><div class="toolbar"><div><h2 id="funnel-heading">Восстановленные воронки</h2><p class="small">Логика без n8n. Пока только синтетический staging: внешние подключения и персональные данные выключены.</p></div></div><div class="funnel-grid" id="funnel-grid"><div class="empty">Загружаю контракты…</div></div></section>
+        <div class="toolbar"><div><h2>Рабочие задачи</h2><p id="task-summary" class="small"></p></div><button class="primary" id="new-task">+ Новая задача</button></div>
+        <div class="layout"><aside class="task-list" id="task-list" aria-label="Список задач"></aside><section class="detail" id="task-detail"><div class="empty">Выберите задачу слева или создайте новую.</div></section></div>
+      </section>
+    </main>
+    <dialog id="task-dialog"><form id="task-form"><header><h2>Новая задача</h2><button type="button" class="icon close-dialog" aria-label="Закрыть">×</button></header><label>Проект<input required name="project_name" maxlength="160" placeholder="Например: Academy Core / Штаб"></label><label>Уровень<select name="project_kind"><option value="platform">Платформа</option><option value="funnel">Воронка</option></select></label><label>Название задачи<input required name="title" maxlength="240" placeholder="Что нужно получить"></label><div class="twocol"><label>Приоритет<select name="priority"><option>P0</option><option selected>P1</option><option>P2</option><option>P3</option></select></label><label>Следующий шаг<input name="next_step" maxlength="12000" placeholder="Что предлагается сделать дальше"></label></div><label>Комментарий / исходная идея<textarea name="owner_comment" maxlength="40000" placeholder="Опишите задачу голосом или текстом. Это станет первой сохранённой версией истории."></textarea></label><footer><button type="button" class="secondary close-dialog">Отмена</button><button class="primary" type="submit">Создать задачу</button></footer></form></dialog>
+    <dialog id="revision-dialog"><form id="revision-form"><header><h2>Новое уточнение</h2><button type="button" class="icon close-dialog" aria-label="Закрыть">×</button></header><p class="small">Старый текст останется в истории. Это нормальный комментарий к задаче, а не системное окно браузера.</p><label>Уточнение<textarea required name="body" maxlength="40000" placeholder="Что изменить, дополнить или учесть"></textarea></label><label>Следующий шаг<input name="next_step" maxlength="12000" placeholder="Необязательно"></label><footer><button type="button" class="secondary close-dialog">Отмена</button><button class="primary" type="submit">Сохранить уточнение</button></footer></form></dialog>
+    <dialog id="move-dialog"><form id="move-form"><header><h2>Перенести задачу</h2><button type="button" class="icon close-dialog" aria-label="Закрыть">×</button></header><p class="small">Перенос сохранится отдельной записью истории.</p><label>Проект<input required name="project_name" maxlength="160"></label><label>Уровень<select name="project_kind"><option value="platform">Платформа</option><option value="funnel">Воронка</option></select></label><footer><button type="button" class="secondary close-dialog">Отмена</button><button class="primary" type="submit">Перенести</button></footer></form></dialog>
+    <template id="task-template"><button class="task-card"><span class="task-priority"></span><strong></strong><span class="task-project"></span><span class="task-state"></span></button></template>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

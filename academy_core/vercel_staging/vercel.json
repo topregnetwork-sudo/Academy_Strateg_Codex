@@ -1,0 +1,18 @@
+{
+  "functions": {
+    "api/queues/project-control-analysis.js": {
+      "maxDuration": 45,
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "project-control-analysis-events",
+          "retryAfterSeconds": 10,
+          "initialDelaySeconds": 0
+        }
+      ]
+    },
+    "api/project-control/synthetic-e2e.js": {
+      "includeFiles": "migrations/*.sql"
+    }
+  }
+}

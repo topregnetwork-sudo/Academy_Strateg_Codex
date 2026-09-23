@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-помощник — Академия Стратег</title>
+  <link rel="stylesheet" href="/ecosystem.css?v=13"><link rel="stylesheet" href="/role-portals.css?v=13"><link rel="stylesheet" href="/ui-shell-v2.css?v=3"><link rel="stylesheet" href="/ai-agent.css?v=2">
+</head>
+<body data-portal="ai-agent">
+  <header class="shell topbar"><a class="brand" href="/ai-agent.html"><img class="brand-logo" src="/academy-strateg-logo-transparent.png" alt="Логотип Академии Стратег"><span>Академия Стратег<small>AI-помощник · синтетический режим</small></span></a><div class="identity">Публикации выключены</div></header>
+  <main class="shell agent-shell">
+    <aside class="agent-sidebar">
+      <div class="agent-side-head"><p class="kicker">РАБОЧАЯ ЗАДАЧА</p><h1>Что подготовить</h1></div>
+      <label>Тип материала<select id="agent-task"><option value="event">Анонс мероприятия</option><option value="test">Приглашение заполнить бизнес-тест</option><option value="team">Приглашение в команду Batman</option><option value="vacancy">Объявление для источника</option></select></label>
+      <label>Канал<select id="agent-channel"><option>Telegram</option><option>VK</option><option>WhatsApp Status</option><option>Личная переписка</option><option>Лендинг</option></select></label>
+      <label>Город<select id="agent-city"><option>Челябинск</option><option>Ижевск</option><option>Москва</option><option>Минск</option><option>Ярославль</option><option>Калининград</option><option>Киров</option><option>Новосибирск</option><option>Онлайн</option></select></label>
+      <label>Спикер<select id="agent-speaker"><option>Наталья Корсакова</option></select></label>
+      <div class="speaker-add"><input id="agent-new-speaker" placeholder="Имя нового спикера"><button class="soft" id="agent-add-speaker" type="button">Добавить</button></div>
+      <div class="agent-context"><span>Контекст агента</span><ul><li>Факты события и Академии</li><li>Выбранный канал</li><li>Персональная ссылка Batman</li><li>Утверждённый фирменный стиль</li></ul></div>
+      <a class="soft link-button" href="/event-builder.html?rev=13">Конструктор мероприятий</a>
+      <a class="soft link-button" href="/batman.html?rev=13">Кабинет Batman</a>
+      <nav class="agent-index" aria-label="Вопросы в текущем чате"><span>Вопросы в чате</span><div id="agent-index-list"><small>Запросов пока нет</small></div></nav>
+    </aside>
+    <section class="agent-workspace">
+      <div class="agent-toolbar"><div><p class="kicker">AI-ПОМОЩНИК</p><h2>Напишите задачу обычными словами</h2></div><span class="agent-state">Локальный черновик</span></div>
+      <div class="agent-thread-wrap"><div class="agent-thread" id="agent-thread">
+        <article class="agent-message assistant"><b>AI-помощник</b><p>Выберите задачу слева и напишите, что нужно подготовить или изменить. Я соберу черновик, а вы сможете попросить убрать, добавить или переписать любую часть.</p></article>
+      </div><button class="agent-to-bottom" id="agent-to-bottom" type="button" aria-label="Перейти к последнему сообщению" title="К последнему сообщению">↓</button></div>
+      <div class="agent-quick" id="agent-quick"><button type="button" data-agent-command="Сделай короче и конкретнее">Короче</button><button type="button" data-agent-command="Добавь понятный призыв к действию">Добавить призыв</button><button type="button" data-agent-command="Убери канцелярит и громкие обещания">Убрать лишнее</button><button type="button" data-agent-command="Сделай отдельную версию для VK">Версия для VK</button><button type="button" data-agent-command="Подготовь задание на изображение">Задание на изображение</button></div>
+      <form class="agent-composer" id="agent-form"><textarea id="agent-input" rows="3" placeholder="Например: подготовь спокойный анонс мероприятия в Челябинске для Telegram. Добавь мою ссылку и не обещай результат."></textarea><button class="primary" type="submit">Отправить агенту</button></form>
+    </section>
+    <aside class="agent-result">
+      <div class="agent-result-head"><div><p class="kicker">ТЕКУЩАЯ ВЕРСИЯ</p><h2 id="agent-result-title">Черновика пока нет</h2></div><span id="agent-version">v0</span></div>
+      <div class="agent-output" id="agent-output"><div class="preview-empty"><span>✦</span><b>Результат появится здесь</b><small>Текст, ссылка и задание для изображения</small></div></div>
+      <div class="agent-actions"><button class="soft" id="agent-copy" type="button" disabled>Копировать</button><button class="primary" id="agent-save" type="button" disabled>Сохранить черновик</button></div>
+      <p class="agent-boundary">Сейчас агент ничего не публикует и не передаёт внешней модели. Сохранение остаётся только в этом браузере.</p>
+    </aside>
+  </main>
+  <div class="toast" id="toast"></div><script src="/role-portals.js?v=14" defer></script><script src="/ai-agent.js?v=4" defer></script>
+</body></html>

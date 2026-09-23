@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" role="img" aria-labelledby="title desc">
+  <title id="title">Исходные фигуры вопроса 66</title>
+  <desc id="desc">Квадрат с кругом и квадратом соотносится с кругом с квадратом и кругом; третья фигура — квадрат с ромбом и кругом.</desc>
+  <style>.shape{fill:none;stroke:#263341;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.mark{fill:#263341;font:600 25px "Segoe UI",Arial,sans-serif}</style>
+  <g class="shape" transform="translate(18 24)">
+    <rect x="0" y="0" width="126" height="126"/>
+    <circle cx="63" cy="63" r="53"/>
+    <rect x="27" y="27" width="72" height="72"/>
+  </g>
+  <g class="shape" transform="translate(230 24)">
+    <circle cx="63" cy="63" r="63"/>
+    <rect x="18.5" y="18.5" width="89" height="89"/>
+    <circle cx="63" cy="63" r="36"/>
+  </g>
+  <g aria-hidden="true" fill="#263341">
+    <circle cx="187" cy="75" r="4"/><circle cx="187" cy="99" r="4"/>
+    <circle cx="389" cy="75" r="4"/><circle cx="389" cy="99" r="4"/>
+    <circle cx="409" cy="75" r="4"/><circle cx="409" cy="99" r="4"/>
+  </g>
+  <g class="shape" transform="translate(442 24)">
+    <rect x="0" y="0" width="126" height="126"/>
+    <path d="M63 8L118 63L63 118L8 63Z"/>
+    <circle cx="63" cy="63" r="31"/>
+  </g>
+  <text class="mark" x="637" y="98">?</text>
+  <g aria-hidden="true" fill="#263341">
+    <circle cx="611" cy="75" r="4"/><circle cx="611" cy="99" r="4"/>
+  </g>
+</svg>

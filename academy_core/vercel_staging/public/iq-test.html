@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10233f">
+  <meta name="description" content="Тест аналитических способностей: 80 заданий, 30 минут.">
+  <title>Тест на интеллект — Академия Стратег</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2310233f'/%3E%3Cpath d='M18 42V22h7v20zm11 0V15h7v27zm11 0V27h7v15z' fill='%2369d3c0'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="iq-test.css?v=18">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="iq-test.html" aria-label="К началу теста">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><strong>Академия Стратег</strong><small>Система оценки</small></span>
+      </a>
+      <div class="topbar-status" id="topbarStatus" hidden>
+        <span class="status-label">Осталось времени</span>
+        <strong class="timer" id="timer" aria-live="polite">30:00</strong>
+      </div>
+    </header>
+
+    <main id="app" class="app" aria-live="polite">
+      <section id="introView" class="intro-layout">
+        <div class="intro-main">
+          <p class="eyebrow">Оценка аналитических способностей</p>
+          <h1>Тест на интеллект</h1>
+          <p class="intro-lead">80 заданий за 30 минут. Работайте последовательно и не задерживайтесь надолго на одном вопросе.</p>
+
+          <div class="fact-row" aria-label="Параметры теста">
+            <div class="fact"><span>Заданий</span><strong>80</strong></div>
+            <div class="fact"><span>Время</span><strong>30 минут</strong></div>
+            <div class="fact"><span>Формат</span><strong>1 ответ</strong></div>
+          </div>
+
+          <div class="instructions">
+            <h2>Перед началом</h2>
+            <ul>
+              <li>Тест выполняется за один раз. Таймер начнётся после нажатия кнопки «Начать».</li>
+              <li>Если вопрос кажется сложным, переходите к следующему — к нему можно вернуться по карте.</li>
+              <li>Не закрывайте страницу до завершения теста.</li>
+              <li>После завершения ответы будут переданы ответственному специалисту.</li>
+            </ul>
+          </div>
+        </div>
+
+        <form id="startForm" class="start-card" autocomplete="off">
+          <div class="candidate-name-card" id="candidateNameCard">
+            <span class="candidate-avatar" id="candidateAvatar" aria-hidden="true">Т</span>
+            <strong id="candidateDisplayName">Тестовый кандидат</strong>
+          </div>
+          <label class="check-row">
+            <input id="readyCheck" type="checkbox" required autocomplete="off">
+            <span>Я прочитал(а) инструкцию и готов(а) пройти тест без паузы.</span>
+          </label>
+          <button class="button button-primary button-large" type="submit">Начать тест</button>
+          <button id="resumeButton" class="button button-secondary" type="button" hidden>Продолжить сохранённый тест</button>
+          <p id="startError" class="form-error" role="alert"></p>
+        </form>
+      </section>
+
+      <section id="testView" class="test-layout" hidden>
+        <aside class="question-map-panel" id="mapPanel" aria-label="Карта вопросов">
+          <div class="map-heading">
+            <div><p class="card-kicker">Навигация</p><h2>Вопросы</h2></div>
+            <button id="closeMapButton" class="icon-button map-close" type="button" aria-label="Закрыть карту">×</button>
+          </div>
+          <div class="map-legend"><span><i class="legend-dot answered"></i>Отвечено</span><span><i class="legend-dot current"></i>Сейчас</span></div>
+          <div id="questionMap" class="question-map"></div>
+          <div class="map-summary"><strong id="answeredCount">0</strong><span>из 80 отвечено</span></div>
+          <button id="reviewButton" class="button button-secondary button-full" type="button">Проверить и завершить</button>
+        </aside>
+
+        <div id="mapBackdrop" class="map-backdrop" hidden></div>
+
+        <div class="test-main">
+          <div class="mobile-testbar">
+            <button id="openMapButton" class="button button-secondary" type="button">Вопросы <span id="mobileAnsweredCount">0/80</span></button>
+            <strong class="mobile-timer" id="mobileTimer">30:00</strong>
+          </div>
+
+          <div class="progress-track" aria-hidden="true"><span id="progressBar"></span></div>
+
+          <article class="question-card">
+            <div class="question-meta">
+              <span id="questionNumber">Вопрос 1 из 80</span>
+              <span id="saveStatus">Сохранено</span>
+            </div>
+            <h2 id="questionPrompt"></h2>
+            <div id="questionDiagram" class="question-diagram" hidden></div>
+            <fieldset id="answerOptions" class="answer-options">
+              <legend class="sr-only">Выберите один ответ</legend>
+            </fieldset>
+          <p class="keyboard-hint">Клавиши А–Д выбирают ответ, стрелки ← → переключают вопросы.</p>
+          </article>
+
+          <div class="question-actions">
+            <button id="prevButton" class="button button-secondary" type="button">← Назад</button>
+            <button id="skipButton" class="text-button" type="button">Пропустить</button>
+            <button id="nextButton" class="button button-primary" type="button">Далее →</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="reviewView" class="review-layout" hidden>
+        <div class="review-card">
+          <p class="eyebrow">Проверка ответов</p>
+          <h1>Перед завершением</h1>
+          <p id="reviewSummary" class="review-lead"></p>
+          <div id="unansweredBlock" class="unanswered-block" hidden>
+            <h2>Без ответа</h2>
+            <div id="unansweredList" class="unanswered-list"></div>
+          </div>
+          <div class="review-stats">
+            <div><span>Отвечено</span><strong id="reviewAnswered">0</strong></div>
+            <div><span>Пропущено</span><strong id="reviewMissing">80</strong></div>
+            <div><span>Осталось</span><strong id="reviewTime">30:00</strong></div>
+          </div>
+          <div class="review-actions">
+            <button id="backToTestButton" class="button button-secondary" type="button">Вернуться к тесту</button>
+            <button id="finishButton" class="button button-primary" type="button">Завершить тест</button>
+          </div>
+          <p id="finishWarning" class="form-error" role="alert"></p>
+        </div>
+      </section>
+
+      <section id="doneView" class="done-layout" hidden>
+        <div class="done-card">
+          <div class="done-icon" aria-hidden="true">✓</div>
+          <p class="eyebrow">Тест завершён</p>
+          <h1>Спасибо!</h1>
+          <p id="doneSummary" class="done-lead">Ваши ответы сохранены. Мы сообщим о следующем этапе отдельно.</p>
+        </div>
+      </section>
+    </main>
+
+    <div id="qaPanel" class="qa-panel" hidden>
+      <strong>Режим проверки</strong>
+      <button id="qaFillButton" type="button">Заполнить 80 ответов</button>
+    </div>
+
+    <dialog id="confirmDialog" class="confirm-dialog">
+      <form method="dialog">
+        <h2>Завершить тест?</h2>
+        <p id="confirmDialogText">После завершения изменить ответы будет нельзя.</p>
+        <div class="dialog-actions">
+          <button class="button button-secondary" value="cancel">Отмена</button>
+          <button id="confirmFinishButton" class="button button-primary" value="confirm">Да, завершить</button>
+        </div>
+      </form>
+    </dialog>
+  </div>
+
+  <script src="iq-test-data.js?v=18"></script>
+  <script src="iq-test.js?v=18"></script>
+</body>
+</html>

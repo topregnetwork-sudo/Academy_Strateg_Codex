@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Онлайн-тестирование — Академия Стратег</title>
+  <link rel="stylesheet" href="/ecosystem.css?v=13">
+  <link rel="stylesheet" href="/ui-shell-v2.css?v=3">
+  <link rel="stylesheet" href="/assessment.css?v=1">
+</head>
+<body>
+<header class="shell topbar"><a class="brand" href="/assessment.html"><img class="brand-logo" src="/academy-strateg-logo-transparent.png" alt="Академия Стратег"><span>Академия Стратег<small>Независимое тестирование · локальный staging</small></span></a><div class="identity">Без отправки в production</div></header>
+<main class="shell assessment-shell">
+  <section id="catalog-view">
+    <div class="page-heading"><div><p class="kicker">ASSESSMENT</p><h1>Тестирование кандидата</h1><p>Единая последовательность независимых тестов. Ответы сохраняются в браузере, после завершения формируется пакет для ручной оценки.</p></div></div>
+    <div class="assessment-grid" id="assessment-list"></div>
+    <section class="card import-card"><div><p class="kicker">БАНК МЕТОДИКИ</p><h2>Загрузить разрешённый пакет вопросов</h2><p>JSON соответствует контракту <code>assessment-package.v1</code>. Это позволяет добавить оцифрованные бумажные материалы без изменения платформы.</p></div><label class="soft file-button">Выбрать JSON<input id="package-file" type="file" accept="application/json,.json"></label></section>
+  </section>
+
+  <section id="test-view" hidden>
+    <div class="test-head"><button class="soft" id="exit-test">← К списку</button><div><p class="kicker" id="test-kind"></p><h1 id="test-title"></h1></div><div class="timer" id="timer">00:00</div></div>
+    <div class="progress-track"><span id="progress-bar"></span></div>
+    <div class="test-layout">
+      <aside class="question-map" id="question-map" aria-label="Навигация по вопросам"></aside>
+      <article class="card question-card">
+        <div class="question-meta"><span id="question-number"></span><span id="save-state">Сохранено локально</span></div>
+        <div id="question-content"></div>
+        <div class="question-actions"><button class="soft" id="prev-question">Назад</button><button class="soft" id="next-question">Далее</button><button class="primary" id="finish-test">Завершить тест</button></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="result-view" hidden>
+    <div class="result-panel card"><p class="kicker">ГОТОВО К РУЧНОЙ ОЦЕНКЕ</p><h1>Ответы собраны</h1><p id="result-summary"></p><div class="result-actions"><button class="primary" id="download-json">Скачать пакет JSON</button><button class="soft" id="download-csv">Скачать таблицу CSV</button><button class="soft" id="return-catalog">Вернуться к тестам</button></div></div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<script src="/assessment.js?v=1" defer></script>
+</body></html>

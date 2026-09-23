@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Личный кабинет Batman — Академия Стратег</title>
+  <link rel="stylesheet" href="/ecosystem.css?v=12"><link rel="stylesheet" href="/role-portals.css?v=12"><link rel="stylesheet" href="/ui-shell-v2.css?v=2">
+</head>
+<body data-portal="batman">
+  <header class="shell topbar"><a class="brand" href="/batman.html"><img class="brand-logo" src="/academy-strateg-logo-transparent.png" alt="Логотип Академии Стратег"><span>Академия Стратег<small>Личный кабинет Batman · синтетика</small></span></a><div class="identity"><span class="status-dot"></span> DEMO-7K4M</div></header>
+  <main class="shell portal-shell">
+    <div class="page-heading compact-heading"><div><p class="kicker">ЛИЧНЫЙ КАБИНЕТ BATMAN</p><h1>Продвижение</h1><p>Подготовьте материал, скопируйте готовое сообщение и следите за общими результатами.</p></div><div class="compact-ref"><span>Ваш код: <b>7K4M</b></span><button class="soft" data-copy="demo.academy/a/7K4M">Копировать свою ссылку</button></div></div>
+    <section class="stats-strip"><div><b id="stat-opened">0</b><span>открыли</span><small>база</small></div><div><b id="stat-registered">0</b><span>регистрации</span><small id="conv-registered">0%</small></div><div><b id="stat-tested">0</b><span>прошли тест</span><small id="conv-tested">0%</small></div><div><b id="stat-events">0</b><span>на события</span><small id="conv-events">0%</small></div></section>
+    <section class="section-title compact-section-title"><div><p class="kicker">КАТАЛОГ МЕРОПРИЯТИЙ</p><h2>Выберите город и событие</h2><p>Показываем только события из общего каталога Академии. Число рядом с городом — сколько событий сейчас доступно.</p></div></section>
+    <nav class="city-filter" id="batman-city-filter" aria-label="Фильтр мероприятий по городу"></nav>
+    <div class="catalog-summary" id="batman-catalog-summary"></div>
+    <section class="event-catalog" id="batman-event-catalog"></section>
+    <section class="role-grid compact-actions">
+      <article class="card action-card"><p class="kicker">ДЛЯ СОБСТВЕННИКА</p><h2>Бизнес-тест</h2><p>Подготовьте готовое сообщение с вашей персональной ссылкой.</p><button class="primary" data-studio-mode="test">Подготовить приглашение</button></article>
+      <article class="card action-card"><p class="kicker">МЕРОПРИЯТИЯ</p><h2>Выбрать событие</h2><p>Выберите город выше, откройте нужное событие и подготовьте материал для своего канала.</p><button class="primary" data-studio-mode="event">Подготовить выбранное</button></article>
+      <article class="card action-card"><p class="kicker">КОМАНДА BATMAN</p><h2>Пригласить в команду</h2><p>Отдельное назначение ссылки. Оно не ведёт человека в Owner-воронку.</p><button class="primary" data-studio-mode="team">Подготовить приглашение</button></article>
+    </section>
+    <section class="section-title"><div><p class="kicker">МОЯ СТАТИСТИКА</p><h2>Воронка моих приглашений</h2></div><label class="period-select">Период<select id="stats-period"><option>30 дней</option><option>7 дней</option><option>Всё время</option></select></label></section>
+    <section class="funnel-stats" id="funnel-stats"></section>
+    <details class="card conversion-details"><summary>Конверсии и поздние этапы</summary><div id="conversion-stats" class="conversion-grid"></div><p class="hint">Показываются только агрегаты по вашему btm_id. Имена, телефоны и ответы собственников недоступны.</p></details>
+    <section class="section-title"><div><p class="kicker">МОИ КОНТАКТЫ</p><h2>Активность направленных собственников</h2></div><span class="safe-badge">Только рабочие сигналы</span></section>
+    <section class="card activity-feed" id="batman-activity"></section>
+    <section class="section-title"><div><p class="kicker">КОНТЕНТ-СТУДИЯ</p><h2 id="studio-title">Выберите задачу выше</h2></div><div class="section-actions"><a class="soft link-button" href="/ai-agent.html?rev=1">Открыть AI-помощника</a><span class="safe-badge">Черновик · публикации выключены</span></div></section>
+    <section class="studio compact-studio">
+      <div class="studio-controls"><label>Канал<select id="portal-channel"><option>Telegram</option><option>VK</option><option>WhatsApp Status</option><option>Instagram Story</option><option>LinkedIn</option></select></label><label>Тон<select id="portal-tone"><option>Деловой и конкретный</option><option>Личный и дружелюбный</option><option>Энергичный анонс</option></select></label><button class="primary" id="portal-generate" disabled>Сгенерировать черновик</button><p class="hint">Hermes и внешние модели пока не вызываются.</p></div>
+      <div class="preview" id="portal-preview"><div class="preview-empty"><span>✦</span><b>Сначала выберите задачу</b><small>Бизнес-тест, мероприятие или команда Batman</small></div></div>
+    </section>
+    <p class="operator-link"><a href="/ecosystem.html">Служебный пульт сквозной проверки</a></p>
+  </main><div class="toast" id="toast"></div><script src="/role-portals.js?v=12" defer></script>
+</body></html>
+
+

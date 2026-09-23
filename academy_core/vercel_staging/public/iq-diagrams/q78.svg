@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -16 400 362" role="img" aria-labelledby="title desc">
+  <title id="title">Общая схема к вопросам 78–80</title>
+  <desc id="desc">Круг, прямоугольник и асимметричный треугольник образуют восемь пронумерованных областей.</desc>
+  <style>
+    .shape{fill:none;stroke:#263341;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+    .number{fill:#263341;font:600 22px "Segoe UI",Arial,sans-serif;text-anchor:middle;dominant-baseline:middle}
+  </style>
+
+  <!-- Геометрия воспроизводит исходный лист: правая вершина треугольника
+       лежит на правой стороне прямоугольника, поэтому его нижняя сторона
+       идёт по диагонали от левого нижнего угла к правой вершине. -->
+  <circle class="shape" cx="200" cy="165" r="175"/>
+  <rect class="shape" x="48" y="90" width="304" height="148"/>
+  <path class="shape" d="M200 20L352 126L48 238Z"/>
+
+  <text class="number" x="37" y="171">1</text>
+  <text class="number" x="363" y="178">2</text>
+  <text class="number" x="190" y="70">3</text>
+  <text class="number" x="183" y="161">4</text>
+  <text class="number" x="295" y="72">5</text>
+  <text class="number" x="339" y="103">6</text>
+  <text class="number" x="205" y="218">7</text>
+  <text class="number" x="200" y="282">8</text>
+</svg>
