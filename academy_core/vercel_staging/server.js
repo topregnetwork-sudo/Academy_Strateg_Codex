@@ -6,7 +6,7 @@ const { Pool } = require('pg');
 const { databaseConfig, yandexDiskConfig, liveGates } = require('./lib/batman-runtime-config');
 const { createStorageRepository, runStorageWorkerOnce } = require('./lib/batman-storage-worker');
 const { createSyntheticTelegramRepository, syntheticRoundTrip } = require('./lib/batman-telegram-synthetic');
-const { ensurePrivateFolder, listFolder, uploadFile, publishResource } = require('./lib/yandex-disk');
+const { ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResource } = require('./lib/yandex-disk');
 
 const port = Number(process.env.PORT || 8080);
 const host = '0.0.0.0';
@@ -129,6 +129,10 @@ async function handleStorageTransfer(request, response) {
       const item = readback?._embedded?.items?.find((candidate) => candidate.path === `disk:/${resourcePath}`)
       if (!item || Number(item.size) !== expectedSize) throw new Error('upload_readback_mismatch')
       return json(response, 200, { ok: true, result, readback: item })
+    }
+    if (url.pathname === '/internal/storage-transfer/upload-link' && request.method === 'GET') {
+      if (!verifiedTransferRequest(request, url)) return json(response, 401, { ok: false })
+      return json(response, 200, { ok: true, result: await getUploadLink(resourcePath, disk.oauthToken) })
     }
     if (url.pathname === '/internal/storage-transfer/upload' && request.method === 'PUT') {
       const expectedSize = Number(request.headers['x-content-size'])

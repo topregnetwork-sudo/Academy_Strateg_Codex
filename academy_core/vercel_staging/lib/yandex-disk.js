@@ -74,15 +74,8 @@ async function listFolder(path, oauthToken, fetchImpl = fetch) {
 }
 
 async function uploadFile(path, content, oauthToken, fetchImpl = fetch, contentLength = null) {
-  const query = new URLSearchParams({ path, overwrite: 'false', fields: 'href,method,templated' })
-  const linkResponse = await fetchImpl(`${API_ROOT}/resources/upload?${query}`, { headers: headers(oauthToken) })
-  const linkBody = await responseBody(linkResponse)
-  if (![200, 409].includes(linkResponse.status)) {
-    const error = new Error(`yandex_disk_upload_link_failed_${linkResponse.status}`)
-    error.code = linkBody?.error || `http_${linkResponse.status}`
-    throw error
-  }
-  if (linkResponse.status === 409) return { created: false, existed: true }
+  const linkBody = await getUploadLink(path, oauthToken, fetchImpl)
+  if (linkBody.existed) return { created: false, existed: true }
   const uploadOptions = { method: 'PUT', body: content }
   if (content && typeof content.getReader === 'function') {
     uploadOptions.duplex = 'half'
@@ -91,6 +84,19 @@ async function uploadFile(path, content, oauthToken, fetchImpl = fetch, contentL
   const uploadResponse = await fetchImpl(linkBody.href, uploadOptions)
   if (![201, 202].includes(uploadResponse.status)) throw new Error(`yandex_disk_upload_failed_${uploadResponse.status}`)
   return { created: true, existed: false }
+}
+
+async function getUploadLink(path, oauthToken, fetchImpl = fetch) {
+  const query = new URLSearchParams({ path, overwrite: 'false', fields: 'href,method,templated' })
+  const linkResponse = await fetchImpl(`${API_ROOT}/resources/upload?${query}`, { headers: headers(oauthToken) })
+  const linkBody = await responseBody(linkResponse)
+  if (![200, 409].includes(linkResponse.status)) {
+    const error = new Error(`yandex_disk_upload_link_failed_${linkResponse.status}`)
+    error.code = linkBody?.error || `http_${linkResponse.status}`
+    throw error
+  }
+  if (linkResponse.status === 409) return { existed: true, href: null }
+  return { existed: false, href: linkBody.href }
 }
 
 async function publishResource(path, oauthToken, fetchImpl = fetch) {
@@ -108,4 +114,4 @@ async function publishResource(path, oauthToken, fetchImpl = fetch) {
   return resource
 }
 
-module.exports = { API_ROOT, createFolder, readFolder, ensurePrivateFolder, listFolder, uploadFile, publishResource }
+module.exports = { API_ROOT, createFolder, readFolder, ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResource }
