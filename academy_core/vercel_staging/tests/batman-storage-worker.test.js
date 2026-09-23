@@ -19,6 +19,7 @@ test('all new runtime gates default closed', () => {
     zoom: false,
     referralIssue: false,
     realPii: false,
+    telegramSynthetic: false,
   })
 })
 

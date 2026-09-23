@@ -43,7 +43,15 @@ function liveGates(env = process.env) {
     zoom: env.BATMAN_ZOOM_ENABLED === 'true',
     referralIssue: env.BATMAN_REFERRAL_ISSUE_ENABLED === 'true',
     realPii: env.BATMAN_REAL_PII_ENABLED === 'true',
+    telegramSynthetic: env.BATMAN_TELEGRAM_SYNTHETIC_ENABLED === 'true',
   }
 }
 
-module.exports = { databaseConfig, yandexDiskConfig, liveGates }
+function telegramConfig(env = process.env) {
+  return {
+    botToken: required(env, 'BATMAN_TELEGRAM_BOT_TOKEN'),
+    syntheticChatId: required(env, 'BATMAN_TELEGRAM_SYNTHETIC_CHAT_ID'),
+  }
+}
+
+module.exports = { databaseConfig, yandexDiskConfig, liveGates, telegramConfig }
