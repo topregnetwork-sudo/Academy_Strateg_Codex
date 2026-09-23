@@ -2,10 +2,9 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Pool } = require('pg');
-const { databaseConfig, yandexDiskConfig, liveGates, telegramConfig } = require('./lib/batman-runtime-config');
+const { databaseConfig, yandexDiskConfig, liveGates } = require('./lib/batman-runtime-config');
 const { createStorageRepository, runStorageWorkerOnce } = require('./lib/batman-storage-worker');
 const { createSyntheticTelegramRepository, syntheticRoundTrip } = require('./lib/batman-telegram-synthetic');
-const { createTelegramRepository, runTelegramWorkerOnce } = require('./lib/batman-telegram-worker');
 
 const port = Number(process.env.PORT || 8080);
 const host = '0.0.0.0';
@@ -13,8 +12,6 @@ const runtimeState = {
   database: 'pending',
   storageWorker: 'pending',
   lastOperationId: null,
-  telegramWorker: 'disabled',
-  lastTelegramOperationId: null,
   startedAt: new Date().toISOString(),
 };
 
@@ -37,16 +34,6 @@ async function runBoundedWorker() {
     });
     runtimeState.storageWorker = result?.state || 'idle';
     runtimeState.lastOperationId = result?.jobId || null;
-    if (liveGates(process.env).telegramSend) {
-      const telegram = telegramConfig(process.env);
-      const telegramResult = await runTelegramWorkerOnce({
-        repository: createTelegramRepository(pool, telegram.syntheticChatId),
-        botToken: telegram.botToken,
-        allowedChatId: telegram.syntheticChatId,
-      });
-      runtimeState.telegramWorker = telegramResult?.state || 'idle';
-      runtimeState.lastTelegramOperationId = telegramResult?.jobId || null;
-    }
   } catch (error) {
     runtimeState.database = runtimeState.database === 'ready' ? 'ready' : 'failed';
     runtimeState.storageWorker = 'failed';

@@ -47,11 +47,4 @@ function liveGates(env = process.env) {
   }
 }
 
-function telegramConfig(env = process.env) {
-  return {
-    botToken: required(env, 'BATMAN_TELEGRAM_BOT_TOKEN'),
-    syntheticChatId: required(env, 'BATMAN_TELEGRAM_SYNTHETIC_CHAT_ID'),
-  }
-}
-
-module.exports = { databaseConfig, yandexDiskConfig, liveGates, telegramConfig }
+module.exports = { databaseConfig, yandexDiskConfig, liveGates }
