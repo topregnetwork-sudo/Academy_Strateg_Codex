@@ -83,7 +83,9 @@ async function uploadFile(path, content, oauthToken, fetchImpl = fetch) {
     throw error
   }
   if (linkResponse.status === 409) return { created: false, existed: true }
-  const uploadResponse = await fetchImpl(linkBody.href, { method: 'PUT', body: content })
+  const uploadOptions = { method: 'PUT', body: content }
+  if (content && typeof content.getReader === 'function') uploadOptions.duplex = 'half'
+  const uploadResponse = await fetchImpl(linkBody.href, uploadOptions)
   if (![201, 202].includes(uploadResponse.status)) throw new Error(`yandex_disk_upload_failed_${uploadResponse.status}`)
   return { created: true, existed: false }
 }
