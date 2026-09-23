@@ -110,6 +110,27 @@ async function handleStorageTransfer(request, response) {
     if (!allowedRoot || (resourcePath !== allowedRoot && !resourcePath.startsWith(`${allowedRoot}/`))) {
       return json(response, 403, { ok: false, code: 'storage_path_outside_allowed_root' })
     }
+    if (url.pathname === '/internal/storage-transfer/remote-upload' && request.method === 'PUT') {
+      const expectedSize = Number(request.headers['x-content-size'])
+      const expectedSha = String(request.headers['x-content-sha256'] || '').toLowerCase()
+      const googleFileId = String(request.headers['x-google-file-id'] || '')
+      const googleAccessToken = String(request.headers['x-google-access-token'] || '')
+      if (!verifiedTransferRequest(request, url, expectedSha, String(expectedSize))) return json(response, 401, { ok: false })
+      if (!googleFileId || !googleAccessToken) return json(response, 400, { ok: false, code: 'google_source_not_configured' })
+      const sourceResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(googleFileId)}?alt=media&supportsAllDrives=true`, {
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
+      })
+      if (!sourceResponse.ok) throw new Error(`google_source_fetch_failed_${sourceResponse.status}`)
+      const body = Buffer.from(await sourceResponse.arrayBuffer())
+      const actualSha = crypto.createHash('sha256').update(body).digest('hex')
+      if (body.length !== expectedSize || actualSha !== expectedSha) throw new Error('google_source_readback_mismatch')
+      const result = await uploadFile(resourcePath, body, disk.oauthToken)
+      const parentPath = resourcePath.split('/').slice(0, -1).join('/')
+      const readback = await listFolder(parentPath, disk.oauthToken)
+      const item = readback?._embedded?.items?.find((candidate) => candidate.path === `disk:/${resourcePath}`)
+      if (!item || Number(item.size) !== expectedSize) throw new Error('upload_readback_mismatch')
+      return json(response, 200, { ok: true, result, readback: item })
+    }
     if (url.pathname === '/internal/storage-transfer/upload' && request.method === 'PUT') {
       const expectedSize = Number(request.headers['x-content-size'])
       const expectedSha = String(request.headers['x-content-sha256'] || '').toLowerCase()
