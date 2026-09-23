@@ -123,7 +123,7 @@ async function handleStorageTransfer(request, response) {
       if (!sourceResponse.ok) throw new Error(`google_source_fetch_failed_${sourceResponse.status}`)
       const sourceSize = Number(sourceResponse.headers.get('content-length'))
       if (!Number.isSafeInteger(sourceSize) || sourceSize !== expectedSize) throw new Error('google_source_size_mismatch')
-      const result = await uploadFile(resourcePath, sourceResponse.body, disk.oauthToken)
+      const result = await uploadFile(resourcePath, sourceResponse.body, disk.oauthToken, fetch, expectedSize)
       const parentPath = resourcePath.split('/').slice(0, -1).join('/')
       const readback = await listFolder(parentPath, disk.oauthToken)
       const item = readback?._embedded?.items?.find((candidate) => candidate.path === `disk:/${resourcePath}`)

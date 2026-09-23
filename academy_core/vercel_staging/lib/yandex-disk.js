@@ -73,7 +73,7 @@ async function listFolder(path, oauthToken, fetchImpl = fetch) {
   return body
 }
 
-async function uploadFile(path, content, oauthToken, fetchImpl = fetch) {
+async function uploadFile(path, content, oauthToken, fetchImpl = fetch, contentLength = null) {
   const query = new URLSearchParams({ path, overwrite: 'false', fields: 'href,method,templated' })
   const linkResponse = await fetchImpl(`${API_ROOT}/resources/upload?${query}`, { headers: headers(oauthToken) })
   const linkBody = await responseBody(linkResponse)
@@ -84,7 +84,10 @@ async function uploadFile(path, content, oauthToken, fetchImpl = fetch) {
   }
   if (linkResponse.status === 409) return { created: false, existed: true }
   const uploadOptions = { method: 'PUT', body: content }
-  if (content && typeof content.getReader === 'function') uploadOptions.duplex = 'half'
+  if (content && typeof content.getReader === 'function') {
+    uploadOptions.duplex = 'half'
+    if (Number.isSafeInteger(contentLength) && contentLength >= 0) uploadOptions.headers = { 'content-length': String(contentLength) }
+  }
   const uploadResponse = await fetchImpl(linkBody.href, uploadOptions)
   if (![201, 202].includes(uploadResponse.status)) throw new Error(`yandex_disk_upload_failed_${uploadResponse.status}`)
   return { created: true, existed: false }
