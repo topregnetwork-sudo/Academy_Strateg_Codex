@@ -2,6 +2,14 @@ const { sendText } = require('./telegram-bot')
 
 function createTildaTelegramOutboxRepository(pool) {
   return {
+    async queueSelftest(idempotencyKey) {
+      const result = await pool.query(`update event_registration_outbox
+        set delivery_state='queued', payload=jsonb_set(payload,'{text}',to_jsonb(('ТЕСТ · ' || payload->>'text')::text))
+        where idempotency_key=$1 and delivery_state='held'
+          and idempotency_key like 'tilda:v1:8607529:%:tilda-intake-103-selftest-%:registration:telegram_forum_mirror:v%'
+        returning id`, [idempotencyKey])
+      return result.rowCount === 1
+    },
     async claimOne(idempotencyKey) {
       const result = await pool.query(`update event_registration_outbox
         set delivery_state='processing', delivery_attempts=delivery_attempts+1, last_error=null
@@ -44,4 +52,10 @@ async function deliverTildaTelegramOutbox({ repository, idempotencyKey, botToken
   }
 }
 
-module.exports = { createTildaTelegramOutboxRepository, deliverTildaTelegramOutbox }
+async function releaseAndDeliverTildaSelftest(options) {
+  const queued = await options.repository.queueSelftest(options.idempotencyKey)
+  const result = await deliverTildaTelegramOutbox(options)
+  return { ...result, selftest_released: queued }
+}
+
+module.exports = { createTildaTelegramOutboxRepository, deliverTildaTelegramOutbox, releaseAndDeliverTildaSelftest }
