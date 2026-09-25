@@ -16,6 +16,8 @@ create table if not exists event_registrations (
   event_code text not null,
   city text not null,
   identity_key text not null,
+  campaign_id text not null,
+  route_version integer not null,
   source text not null default 'tilda',
   status text not null default 'registered',
   created_at timestamptz not null default now(),

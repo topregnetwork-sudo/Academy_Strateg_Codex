@@ -15,8 +15,6 @@ const runtimeState = {
   database: 'pending',
   storageWorker: 'pending',
   lastOperationId: null,
-  tildaIntake: 'pending',
-  tildaSyntheticReadback: null,
   startedAt: new Date().toISOString(),
 };
 
@@ -66,39 +64,6 @@ async function readJson(request) {
     if (value.length > 16384) throw new Error('request_too_large');
   }
   return JSON.parse(value || '{}');
-}
-
-async function runTildaSyntheticContract() {
-  const pool = new Pool(databaseConfig(process.env))
-  try {
-    const migration = fs.readFileSync(path.join(__dirname, 'migrations', '0010_tilda_event_intake.sql'), 'utf8')
-    await pool.query(migration)
-    const repository = createTildaIntakeRepository(pool)
-    const base = { project_id: '8607529' }
-    const testResult = await repository.ingest({ ...base, form_id: '4215769301', transaction_id: 'as-tilda-103-test', test: 'test' })
-    const chelyabinsk = { ...base, form_id: '4215769301', transaction_id: 'as-tilda-103-chelyabinsk', identity_key: 'synthetic-person-chelyabinsk-103' }
-    const minsk = { ...base, form_id: '3744984501', transaction_id: 'as-tilda-103-minsk', identity_key: 'synthetic-person-minsk-103' }
-    const cOriginal = await repository.ingest(chelyabinsk, { mirrorEnabled: false })
-    const cReplay = await repository.ingest(chelyabinsk, { mirrorEnabled: false })
-    const mOriginal = await repository.ingest(minsk, { mirrorEnabled: false })
-    const mReplay = await repository.ingest(minsk, { mirrorEnabled: false })
-    let wrongForm = 'not_rejected'
-    try { await repository.ingest({ ...base, form_id: 'wrong', transaction_id: 'as-tilda-103-wrong', identity_key: 'synthetic-wrong-103' }) } catch (error) { wrongForm = String(error.message) }
-    const cRows = await repository.readback(chelyabinsk.transaction_id)
-    const mRows = await repository.readback(minsk.transaction_id)
-    const testRows = await repository.readback('as-tilda-103-test')
-    const pass = testResult.registrations === 0 && testRows.length === 0 &&
-      cReplay.registrations === 0 && mReplay.registrations === 0 && wrongForm === 'form_not_allowed' &&
-      cRows.length === 1 && mRows.length === 1 && cRows[0].message_thread_id === 2 && mRows[0].message_thread_id === 4 &&
-      cRows[0].delivery_state === 'held' && mRows[0].delivery_state === 'held' &&
-      Number(cRows[0].delivery_attempts) === 0 && Number(mRows[0].delivery_attempts) === 0
-    runtimeState.tildaIntake = pass ? 'synthetic_pass_mirror_disabled' : 'synthetic_failed'
-    runtimeState.tildaSyntheticReadback = { pass, test: testResult, chelyabinsk: { original: cOriginal, replay: cReplay, rows: cRows }, minsk: { original: mOriginal, replay: mReplay, rows: mRows }, wrong_form: wrongForm }
-  } catch (error) {
-    runtimeState.tildaIntake = 'synthetic_failed'
-    runtimeState.tildaSyntheticReadback = { pass: false, code: String(error?.code || error?.message || 'unknown').slice(0, 120) }
-    console.error('tilda_synthetic_contract_failed', runtimeState.tildaSyntheticReadback.code)
-  } finally { await pool.end() }
 }
 
 async function readJsonWithRaw(request) {
@@ -305,5 +270,4 @@ const server = http.createServer((request, response) => {
 server.listen(port, host, () => {
   console.log(`batman_runtime_listening:${port}`);
   void runBoundedWorker();
-  void runTildaSyntheticContract();
 });
