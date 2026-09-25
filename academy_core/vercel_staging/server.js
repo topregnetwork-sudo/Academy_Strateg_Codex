@@ -8,6 +8,7 @@ const { createStorageRepository, runStorageWorkerOnce } = require('./lib/batman-
 const { createSyntheticTelegramRepository, syntheticRoundTrip } = require('./lib/batman-telegram-synthetic');
 const { ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResource } = require('./lib/yandex-disk');
 const { createTildaIntakeRepository } = require('./lib/tilda-event-intake');
+const { createTildaTelegramOutboxRepository, deliverTildaTelegramOutbox } = require('./lib/tilda-telegram-outbox');
 const tildaRoutingRegistry = require('./config/tilda-event-routing.v1.json');
 
 const port = Number(process.env.PORT || 8080);
@@ -280,6 +281,13 @@ async function handleTildaIntake(request, response) {
       const transactionId = String(url.searchParams.get('transaction_id') || '')
       const rows = await createTildaIntakeRepository(pool).readback(transactionId)
       return json(response, 200, { ok: true, transaction_id: transactionId, rows })
+    }
+    if (isSynthetic && url.pathname === '/internal/tilda-intake/deliver' && request.method === 'POST') {
+      const { raw, body } = await readJsonWithRaw(request)
+      const bodyHash = crypto.createHash('sha256').update(raw).digest('hex')
+      if (!verifiedTransferRequest(request, url, bodyHash, String(Buffer.byteLength(raw)))) return json(response, 401, { ok: false })
+      const result = await deliverTildaTelegramOutbox({ repository: createTildaTelegramOutboxRepository(pool), idempotencyKey: String(body.idempotency_key || ''), botToken: String(process.env.BATMAN_TELEGRAM_BOT_TOKEN || '') })
+      return json(response, 200, { ok: true, ...result })
     }
     if (request.method !== 'POST') return json(response, 404, { ok: false })
     const { raw, body } = await readJsonWithRaw(request)

@@ -7,12 +7,12 @@ function safeTelegramError(body, status) {
   return error
 }
 
-async function sendText({ botToken, chatId, text, fetchImpl = fetch }) {
+async function sendText({ botToken, chatId, messageThreadId, text, fetchImpl = fetch }) {
   if (!botToken) throw new Error('telegram_bot_token_not_configured')
   const response = await fetchImpl(`${API_ROOT}/bot${botToken}/sendMessage`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: String(chatId), text, disable_web_page_preview: true }),
+    body: JSON.stringify({ chat_id: String(chatId), ...(messageThreadId ? { message_thread_id: Number(messageThreadId) } : {}), text, disable_web_page_preview: true }),
   })
   const body = await response.json().catch(() => null)
   if (!response.ok || body?.ok !== true || !body?.result?.message_id) {
