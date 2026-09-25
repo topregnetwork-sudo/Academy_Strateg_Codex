@@ -7,6 +7,7 @@ const { databaseConfig, yandexDiskConfig, liveGates } = require('./lib/batman-ru
 const { createStorageRepository, runStorageWorkerOnce } = require('./lib/batman-storage-worker');
 const { createSyntheticTelegramRepository, syntheticRoundTrip } = require('./lib/batman-telegram-synthetic');
 const { ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResource } = require('./lib/yandex-disk');
+const { createTildaIntakeRepository } = require('./lib/tilda-event-intake');
 
 const port = Number(process.env.PORT || 8080);
 const host = '0.0.0.0';
@@ -14,6 +15,8 @@ const runtimeState = {
   database: 'pending',
   storageWorker: 'pending',
   lastOperationId: null,
+  tildaIntake: 'pending',
+  tildaSyntheticReadback: null,
   startedAt: new Date().toISOString(),
 };
 
@@ -63,6 +66,50 @@ async function readJson(request) {
     if (value.length > 16384) throw new Error('request_too_large');
   }
   return JSON.parse(value || '{}');
+}
+
+async function runTildaSyntheticContract() {
+  const gates = liveGates(process.env)
+  if (!gates.tildaSynthetic) { runtimeState.tildaIntake = 'disabled'; return }
+  const pool = new Pool(databaseConfig(process.env))
+  try {
+    const migration = fs.readFileSync(path.join(__dirname, 'migrations', '0010_tilda_event_intake.sql'), 'utf8')
+    await pool.query(migration)
+    const repository = createTildaIntakeRepository(pool)
+    const base = { project_id: '8607529' }
+    const testResult = await repository.ingest({ ...base, form_id: '4215769301', transaction_id: 'as-tilda-103-test', test: 'test' })
+    const chelyabinsk = { ...base, form_id: '4215769301', transaction_id: 'as-tilda-103-chelyabinsk', identity_key: 'synthetic-person-chelyabinsk-103' }
+    const minsk = { ...base, form_id: '3744984501', transaction_id: 'as-tilda-103-minsk', identity_key: 'synthetic-person-minsk-103' }
+    const cOriginal = await repository.ingest(chelyabinsk, { mirrorEnabled: false })
+    const cReplay = await repository.ingest(chelyabinsk, { mirrorEnabled: false })
+    const mOriginal = await repository.ingest(minsk, { mirrorEnabled: false })
+    const mReplay = await repository.ingest(minsk, { mirrorEnabled: false })
+    let wrongForm = 'not_rejected'
+    try { await repository.ingest({ ...base, form_id: 'wrong', transaction_id: 'as-tilda-103-wrong', identity_key: 'synthetic-wrong-103' }) } catch (error) { wrongForm = String(error.message) }
+    const cRows = await repository.readback(chelyabinsk.transaction_id)
+    const mRows = await repository.readback(minsk.transaction_id)
+    const testRows = await repository.readback('as-tilda-103-test')
+    const pass = testResult.registrations === 0 && testRows.length === 0 &&
+      cReplay.registrations === 0 && mReplay.registrations === 0 && wrongForm === 'form_not_allowed' &&
+      cRows.length === 1 && mRows.length === 1 && cRows[0].message_thread_id === 2 && mRows[0].message_thread_id === 4 &&
+      cRows[0].delivery_state === 'held' && mRows[0].delivery_state === 'held' &&
+      Number(cRows[0].delivery_attempts) === 0 && Number(mRows[0].delivery_attempts) === 0
+    runtimeState.tildaIntake = pass ? 'synthetic_pass_mirror_disabled' : 'synthetic_failed'
+    runtimeState.tildaSyntheticReadback = { pass, test: testResult, chelyabinsk: { original: cOriginal, replay: cReplay, rows: cRows }, minsk: { original: mOriginal, replay: mReplay, rows: mRows }, wrong_form: wrongForm }
+  } catch (error) {
+    runtimeState.tildaIntake = 'synthetic_failed'
+    runtimeState.tildaSyntheticReadback = { pass: false, code: String(error?.code || error?.message || 'unknown').slice(0, 120) }
+    console.error('tilda_synthetic_contract_failed', runtimeState.tildaSyntheticReadback.code)
+  } finally { await pool.end() }
+}
+
+async function readJsonWithRaw(request) {
+  let raw = ''
+  for await (const chunk of request) {
+    raw += chunk
+    if (raw.length > 16384) throw new Error('request_too_large')
+  }
+  return { raw, body: JSON.parse(raw || '{}') }
 }
 
 function transferPublicKey() {
@@ -197,7 +244,50 @@ async function handleSyntheticTelegram(request, response) {
   }
 }
 
+async function handleTildaIntake(request, response) {
+  const gates = liveGates(process.env)
+  const url = new URL(request.url, 'http://runtime.local')
+  const isSynthetic = url.pathname.startsWith('/internal/tilda-intake/')
+  if (isSynthetic && !gates.tildaSynthetic) return json(response, 404, { ok: false })
+  if (!isSynthetic && !gates.tildaIntake) return json(response, 404, { ok: false })
+  const pool = new Pool(databaseConfig(process.env))
+  try {
+    if (isSynthetic && url.pathname === '/internal/tilda-intake/migrate' && request.method === 'POST') {
+      if (!verifiedTransferRequest(request, url)) return json(response, 401, { ok: false })
+      const migration = fs.readFileSync(path.join(__dirname, 'migrations', '0010_tilda_event_intake.sql'), 'utf8')
+      await pool.query(migration)
+      return json(response, 200, { ok: true, migration: '0010_tilda_event_intake' })
+    }
+    if (isSynthetic && url.pathname === '/internal/tilda-intake/readback' && request.method === 'GET') {
+      if (!verifiedTransferRequest(request, url)) return json(response, 401, { ok: false })
+      const transactionId = String(url.searchParams.get('transaction_id') || '')
+      const rows = await createTildaIntakeRepository(pool).readback(transactionId)
+      return json(response, 200, { ok: true, transaction_id: transactionId, rows })
+    }
+    if (request.method !== 'POST') return json(response, 404, { ok: false })
+    const { raw, body } = await readJsonWithRaw(request)
+    if (isSynthetic) {
+      const bodyHash = crypto.createHash('sha256').update(raw).digest('hex')
+      if (!verifiedTransferRequest(request, url, bodyHash, String(Buffer.byteLength(raw)))) return json(response, 401, { ok: false })
+    } else {
+      const token = String(url.searchParams.get('token') || '')
+      const expected = String(process.env.TILDA_INTAKE_TOKEN || '')
+      if (expected.length < 24 || token !== expected) return json(response, 401, { ok: false })
+    }
+    const result = await createTildaIntakeRepository(pool).ingest(body, { mirrorEnabled: gates.tildaTelegramMirror })
+    return json(response, 200, { ok: true, mirror_enabled: gates.tildaTelegramMirror, ...result })
+  } catch (error) {
+    console.error('tilda_event_intake_failed', String(error?.code || error?.message || 'request_failed').slice(0, 120))
+    const code = String(error?.code || error?.message || 'request_failed').slice(0, 120)
+    return json(response, code.endsWith('_not_allowed') ? 403 : 400, { ok: false, code })
+  } finally { await pool.end() }
+}
+
 const server = http.createServer((request, response) => {
+  if (request.url?.startsWith('/internal/tilda-intake/') || request.url?.startsWith('/api/intake/tilda-registration')) {
+    void handleTildaIntake(request, response);
+    return;
+  }
   if (request.url?.startsWith('/internal/storage-transfer/')) {
     void handleStorageTransfer(request, response);
     return;
@@ -217,4 +307,5 @@ const server = http.createServer((request, response) => {
 server.listen(port, host, () => {
   console.log(`batman_runtime_listening:${port}`);
   void runBoundedWorker();
+  void runTildaSyntheticContract();
 });

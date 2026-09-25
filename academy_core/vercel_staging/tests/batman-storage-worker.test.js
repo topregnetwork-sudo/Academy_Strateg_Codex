@@ -20,6 +20,9 @@ test('all new runtime gates default closed', () => {
     referralIssue: false,
     realPii: false,
     telegramSynthetic: false,
+    tildaIntake: false,
+    tildaSynthetic: false,
+    tildaTelegramMirror: false,
   })
 })
 

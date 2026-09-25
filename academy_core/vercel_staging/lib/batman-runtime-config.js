@@ -44,6 +44,9 @@ function liveGates(env = process.env) {
     referralIssue: env.BATMAN_REFERRAL_ISSUE_ENABLED === 'true',
     realPii: env.BATMAN_REAL_PII_ENABLED === 'true',
     telegramSynthetic: env.BATMAN_TELEGRAM_SYNTHETIC_ENABLED === 'true',
+    tildaIntake: env.TILDA_INTAKE_ENABLED === 'true',
+    tildaSynthetic: env.TILDA_INTAKE_SYNTHETIC_ENABLED === 'true',
+    tildaTelegramMirror: env.TILDA_TELEGRAM_MIRROR_ENABLED === 'true',
   }
 }
 
