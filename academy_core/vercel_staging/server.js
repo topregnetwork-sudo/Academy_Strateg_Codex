@@ -9,7 +9,12 @@ const { createSyntheticTelegramRepository, syntheticRoundTrip } = require('./lib
 const { ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResource } = require('./lib/yandex-disk');
 const { createTildaIntakeRepository } = require('./lib/tilda-event-intake');
 const { createTildaTelegramOutboxRepository, deliverTildaTelegramOutbox, releaseAndDeliverTildaSelftest } = require('./lib/tilda-telegram-outbox');
+const { runTildaBackfill } = require('./lib/tilda-backfill');
 const tildaRoutingRegistry = require('./config/tilda-event-routing.v1.json');
+
+function enabledTildaRegistry() {
+  return { ...tildaRoutingRegistry, global_enabled: true, telegram_sender: { ...tildaRoutingRegistry.telegram_sender, membership_and_send_permission_verified: true }, events: tildaRoutingRegistry.events.map((event) => ({ ...event, enabled: true })) }
+}
 
 const port = Number(process.env.PORT || 8080);
 const host = '0.0.0.0';
@@ -29,12 +34,7 @@ async function runTildaSelftest() {
   try {
     const migration = fs.readFileSync(path.join(__dirname, 'migrations', '0010_tilda_event_intake.sql'), 'utf8');
     await pool.query(migration);
-    const registry = {
-      ...tildaRoutingRegistry,
-      global_enabled: true,
-      telegram_sender: { ...tildaRoutingRegistry.telegram_sender, membership_and_send_permission_verified: true },
-      events: tildaRoutingRegistry.events.map((event) => ({ ...event, enabled: true })),
-    };
+    const registry = enabledTildaRegistry();
     const repository = createTildaIntakeRepository(pool, registry);
     const routes = registry.events.map((route) => ({
       route,
@@ -306,6 +306,14 @@ async function handleTildaIntake(request, response) {
       const { body } = await readJsonWithRaw(request)
       const options = { repository: createTildaTelegramOutboxRepository(pool), idempotencyKey: String(body.idempotency_key || ''), botToken: String(process.env.BATMAN_TELEGRAM_BOT_TOKEN || '') }
       const result = body.release_selftest === true ? await releaseAndDeliverTildaSelftest(options) : await deliverTildaTelegramOutbox(options)
+      return json(response, 200, { ok: true, ...result })
+    }
+    if (isSynthetic && url.pathname === '/internal/tilda-intake/backfill' && request.method === 'POST') {
+      if (!authorizedTildaDelivery(request)) return json(response, 401, { ok: false })
+      const { body } = await readJsonWithRaw(request)
+      const repository = createTildaIntakeRepository(pool, enabledTildaRegistry())
+      const outbox = createTildaTelegramOutboxRepository(pool)
+      const result = await runTildaBackfill({ rows: body.rows, repository, outbox, botToken: String(process.env.BATMAN_TELEGRAM_BOT_TOKEN || ''), deliver: deliverTildaTelegramOutbox })
       return json(response, 200, { ok: true, ...result })
     }
     if (request.method !== 'POST') return json(response, 404, { ok: false })

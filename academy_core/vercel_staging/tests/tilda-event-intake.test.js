@@ -1,6 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { defaultRegistry, validateRegistry, resolveRoute, normalize, normalizeTildaWebhookPayload, telegramPayload } = require('../lib/tilda-event-intake')
+const { runTildaBackfill } = require('../lib/tilda-backfill')
 
 function enabledRegistry() {
   return { ...defaultRegistry, global_enabled: true, telegram_sender: { ...defaultRegistry.telegram_sender, membership_and_send_permission_verified: true }, events: defaultRegistry.events.map((event) => ({ ...event, enabled: true })) }
@@ -45,4 +46,18 @@ test('normalizes real Tilda webhook field names without retaining raw identity i
   assert.equal(normalized.transaction_id, '467251:8442970')
   assert.match(normalized.identity_key, /^tilda:[a-f0-9]{64}$/)
   assert.equal(normalized.identity_key.includes('@'), false)
+})
+
+test('one-shot backfill is bounded and reports idempotent delivery evidence', async () => {
+  let ingests = 0
+  const result = await runTildaBackfill({
+    rows: [{ formid: 'form4215769301', tranid: 'lead:1' }, { formid: 'form3744984501', tranid: 'lead:2' }],
+    repository: { ingest: async () => ({ inserted: ++ingests === 1, duplicate: ingests !== 1, idempotency_key: `k${ingests}` }) },
+    outbox: {}, botToken: 'secret',
+    deliver: async ({ idempotencyKey }) => ({ state: 'delivered', messageId: idempotencyKey === 'k1' ? 101 : 102, duplicate: idempotencyKey !== 'k1' }),
+  })
+  assert.equal(result.rows, 2)
+  assert.equal(result.delivered, 2)
+  assert.deepEqual(result.evidence.map((item) => [item.form_id, item.message_id]), [['4215769301',101],['3744984501',102]])
+  await assert.rejects(() => runTildaBackfill({ rows: [], repository: {}, outbox: {}, deliver: async () => {} }), /backfill_row_count_invalid/)
 })
