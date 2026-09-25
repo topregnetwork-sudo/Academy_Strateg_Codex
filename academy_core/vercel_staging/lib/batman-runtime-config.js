@@ -46,6 +46,7 @@ function liveGates(env = process.env) {
     telegramSynthetic: env.BATMAN_TELEGRAM_SYNTHETIC_ENABLED === 'true',
     tildaIntake: env.TILDA_INTAKE_ENABLED === 'true',
     tildaSynthetic: env.TILDA_INTAKE_SYNTHETIC_ENABLED === 'true',
+    tildaSelftest: env.TILDA_INTAKE_SELFTEST_ENABLED === 'true',
     tildaTelegramMirror: env.TILDA_TELEGRAM_MIRROR_ENABLED === 'true',
   }
 }

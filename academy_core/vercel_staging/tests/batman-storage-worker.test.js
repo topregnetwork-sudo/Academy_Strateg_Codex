@@ -22,6 +22,7 @@ test('all new runtime gates default closed', () => {
     telegramSynthetic: false,
     tildaIntake: false,
     tildaSynthetic: false,
+    tildaSelftest: false,
     tildaTelegramMirror: false,
   })
 })

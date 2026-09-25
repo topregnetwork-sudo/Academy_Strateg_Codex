@@ -8,6 +8,7 @@ const { createStorageRepository, runStorageWorkerOnce } = require('./lib/batman-
 const { createSyntheticTelegramRepository, syntheticRoundTrip } = require('./lib/batman-telegram-synthetic');
 const { ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResource } = require('./lib/yandex-disk');
 const { createTildaIntakeRepository } = require('./lib/tilda-event-intake');
+const tildaRoutingRegistry = require('./config/tilda-event-routing.v1.json');
 
 const port = Number(process.env.PORT || 8080);
 const host = '0.0.0.0';
@@ -15,8 +16,60 @@ const runtimeState = {
   database: 'pending',
   storageWorker: 'pending',
   lastOperationId: null,
+  tildaSelftest: 'disabled',
+  tildaSelftestReadback: null,
   startedAt: new Date().toISOString(),
 };
+
+async function runTildaSelftest() {
+  if (!liveGates(process.env).tildaSelftest) return;
+  runtimeState.tildaSelftest = 'running';
+  const pool = new Pool(databaseConfig(process.env));
+  try {
+    const migration = fs.readFileSync(path.join(__dirname, 'migrations', '0010_tilda_event_intake.sql'), 'utf8');
+    await pool.query(migration);
+    const registry = {
+      ...tildaRoutingRegistry,
+      global_enabled: true,
+      events: tildaRoutingRegistry.events.map((event) => ({ ...event, enabled: true })),
+    };
+    const repository = createTildaIntakeRepository(pool, registry);
+    const routes = registry.events.map((route) => ({
+      route,
+      input: {
+        project_id: route.tilda_project_id,
+        form_id: route.form_id,
+        transaction_id: `tilda-intake-103-selftest-${route.city_id}`,
+        identity_key: `synthetic:${route.city_id}`,
+      },
+    }));
+    const testProbe = await repository.ingest({ ...routes[0].input, transaction_id: 'tilda-intake-103-test-probe', test: true });
+    if (testProbe.effects !== 0 || testProbe.registrations !== 0) throw new Error('test_probe_created_effects');
+    const evidence = [];
+    for (const item of routes) {
+      await repository.ingest(item.input, { mirrorEnabled: false });
+      const replay = await repository.ingest(item.input, { mirrorEnabled: false });
+      const rows = await repository.readback(item.input.transaction_id);
+      if (!replay.duplicate || rows.length !== 1) throw new Error(`dedupe_failed_${item.route.city_id}`);
+      const row = rows[0];
+      if (row.event_code !== item.route.event_id || row.chat_id !== item.route.telegram_chat_id || Number(row.message_thread_id) !== item.route.message_thread_id) throw new Error(`route_isolation_failed_${item.route.city_id}`);
+      if (row.delivery_state !== 'held' || Number(row.delivery_attempts) !== 0 || row.telegram_message_id !== null) throw new Error(`outbox_not_held_${item.route.city_id}`);
+      const payloadKeys = Object.keys(row.payload || {}).sort();
+      if (payloadKeys.some((key) => ['name','email','phone','identity_key'].includes(key))) throw new Error(`outbox_pii_detected_${item.route.city_id}`);
+      evidence.push({ event_id: row.event_code, city_id: item.route.city_id, form_id: row.form_id, chat_id: row.chat_id, message_thread_id: Number(row.message_thread_id), delivery_state: row.delivery_state, delivery_attempts: Number(row.delivery_attempts), rows: rows.length, replay_duplicate: true, pii_free: true });
+    }
+    let wrongFormRejected = false;
+    try { await repository.ingest({ ...routes[0].input, form_id: 'not-allowlisted', transaction_id: 'tilda-intake-103-wrong-form' }); } catch (error) { wrongFormRejected = error.message === 'form_not_allowed'; }
+    if (!wrongFormRejected) throw new Error('wrong_form_not_rejected');
+    runtimeState.database = 'ready';
+    runtimeState.tildaSelftest = 'passed';
+    runtimeState.tildaSelftestReadback = { migration: '0010_tilda_event_intake', public_intake_enabled: liveGates(process.env).tildaIntake, telegram_mirror_enabled: liveGates(process.env).tildaTelegramMirror, test_probe_effects: 0, wrong_form_rejected: true, routes: evidence };
+  } catch (error) {
+    runtimeState.tildaSelftest = 'failed';
+    runtimeState.tildaSelftestReadback = { code: String(error?.code || error?.message || 'selftest_failed').slice(0, 120) };
+    console.error('tilda_intake_selftest_failed', runtimeState.tildaSelftestReadback.code);
+  } finally { await pool.end(); }
+}
 
 async function runBoundedWorker() {
   if (!liveGates(process.env).storageWorker) {
@@ -270,4 +323,5 @@ const server = http.createServer((request, response) => {
 server.listen(port, host, () => {
   console.log(`batman_runtime_listening:${port}`);
   void runBoundedWorker();
+  void runTildaSelftest();
 });

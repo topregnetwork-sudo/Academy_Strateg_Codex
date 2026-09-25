@@ -24,6 +24,9 @@ create table if not exists event_registrations (
   unique(event_code, identity_key)
 );
 
+alter table event_registrations add column if not exists campaign_id text;
+alter table event_registrations add column if not exists route_version integer;
+
 create table if not exists event_registration_outbox (
   id uuid primary key,
   registration_id uuid not null unique references event_registrations(id),
