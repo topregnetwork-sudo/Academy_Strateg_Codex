@@ -5,7 +5,7 @@
     "bot_key": "batman_strateg_bot",
     "allowed_methods": ["sendMessage"],
     "inbound_updates_enabled": false,
-    "membership_and_send_permission_verified": false
+    "membership_and_send_permission_verified": true
   },
   "events": [
     {"event_id":"event-chelyabinsk-2026-09-28","city_id":"chelyabinsk","city_name":"Челябинск","tilda_project_id":"8607529","form_id":"4215769301","campaign_id":"four-steps-chelyabinsk-2026-09-28","telegram_chat_id":"-1004404302282","message_thread_id":2,"active_from":"2026-09-25T00:00:00+03:00","active_to":"2026-10-01T23:59:59+03:00","enabled":false,"version":1},

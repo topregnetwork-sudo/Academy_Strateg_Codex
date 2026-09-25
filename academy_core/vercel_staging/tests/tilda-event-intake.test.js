@@ -9,7 +9,7 @@ function enabledRegistry() {
 test('registry contains two disabled initial entries with complete routing fields', () => {
   const registry = validateRegistry(defaultRegistry)
   assert.equal(registry.global_enabled, false)
-  assert.deepEqual(registry.telegram_sender, { bot_key: 'batman_strateg_bot', allowed_methods: ['sendMessage'], inbound_updates_enabled: false, membership_and_send_permission_verified: false })
+  assert.deepEqual(registry.telegram_sender, { bot_key: 'batman_strateg_bot', allowed_methods: ['sendMessage'], inbound_updates_enabled: false, membership_and_send_permission_verified: true })
   assert.deepEqual(registry.events.map((event) => [event.city_id, event.form_id, event.message_thread_id, event.enabled]), [
     ['chelyabinsk', '4215769301', 2, false], ['minsk', '3744984501', 4, false],
   ])
