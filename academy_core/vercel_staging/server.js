@@ -69,8 +69,6 @@ async function readJson(request) {
 }
 
 async function runTildaSyntheticContract() {
-  const gates = liveGates(process.env)
-  if (!gates.tildaSynthetic) { runtimeState.tildaIntake = 'disabled'; return }
   const pool = new Pool(databaseConfig(process.env))
   try {
     const migration = fs.readFileSync(path.join(__dirname, 'migrations', '0010_tilda_event_intake.sql'), 'utf8')
