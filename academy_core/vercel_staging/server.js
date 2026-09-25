@@ -319,8 +319,12 @@ async function handleTildaIntake(request, response) {
       if (expected.length < 24 || token !== expected) return json(response, 401, { ok: false })
     }
     const result = await createTildaIntakeRepository(pool).ingest(body, { mirrorEnabled: gates.tildaTelegramMirror })
+    let delivery = null
+    if (gates.tildaTelegramMirror && result.idempotency_key) {
+      delivery = await deliverTildaTelegramOutbox({ repository: createTildaTelegramOutboxRepository(pool), idempotencyKey: result.idempotency_key, botToken: String(process.env.BATMAN_TELEGRAM_BOT_TOKEN || '') })
+    }
     if (!isSynthetic) { response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }); return response.end('ok') }
-    return json(response, 200, { ok: true, mirror_enabled: gates.tildaTelegramMirror, ...result })
+    return json(response, 200, { ok: true, mirror_enabled: gates.tildaTelegramMirror, ...result, delivery })
   } catch (error) {
     console.error('tilda_event_intake_failed', String(error?.code || error?.message || 'request_failed').slice(0, 120))
     const code = String(error?.code || error?.message || 'request_failed').slice(0, 120)

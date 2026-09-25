@@ -13,7 +13,7 @@ function createTildaTelegramOutboxRepository(pool) {
     async claimOne(idempotencyKey) {
       const result = await pool.query(`update event_registration_outbox
         set delivery_state='processing', delivery_attempts=delivery_attempts+1, last_error=null
-        where id=(select id from event_registration_outbox where idempotency_key=$1 and delivery_state='queued' for update skip locked)
+        where id=(select id from event_registration_outbox where idempotency_key=$1 and delivery_state in ('queued','failed') for update skip locked)
         returning id,chat_id::text,message_thread_id,payload,idempotency_key`, [idempotencyKey])
       return result.rows[0] || null
     },

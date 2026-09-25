@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { defaultRegistry, validateRegistry, resolveRoute, normalize, normalizeTildaWebhookPayload, piiFreePayload } = require('../lib/tilda-event-intake')
+const { defaultRegistry, validateRegistry, resolveRoute, normalize, normalizeTildaWebhookPayload, telegramPayload } = require('../lib/tilda-event-intake')
 
 function enabledRegistry() {
   return { ...defaultRegistry, global_enabled: true, telegram_sender: { ...defaultRegistry.telegram_sender, membership_and_send_permission_verified: true }, events: defaultRegistry.events.map((event) => ({ ...event, enabled: true })) }
@@ -29,10 +29,13 @@ test('unknown form is rejected and enabled route resolves by data', () => {
   assert.throws(() => resolveRoute({ project_id: '8607529', form_id: 'wrong' }, registry), /form_not_allowed/)
 })
 
-test('telegram payload contains route metadata and no submitted identity', () => {
-  const payload = piiFreePayload(enabledRegistry().events[0])
+test('telegram payload contains only approved registration fields and route metadata', () => {
+  const payload = telegramPayload(enabledRegistry().events[0], { Name: 'Тест', Phone: '+70000000000', Email: 'test@example.org', Checkbox: 'yes', COOKIES: 'private' })
   assert.deepEqual(Object.keys(payload).sort(), ['campaign_id','city_id','event_id','route_version','text'])
-  assert.equal(JSON.stringify(payload).includes('person'), false)
+  assert.match(payload.text, /Имя: Тест/)
+  assert.match(payload.text, /Телефон: \+70000000000/)
+  assert.match(payload.text, /Email: test@example.org/)
+  assert.equal(payload.text.includes('COOKIES'), false)
 })
 
 test('normalizes real Tilda webhook field names without retaining raw identity in identity key', () => {

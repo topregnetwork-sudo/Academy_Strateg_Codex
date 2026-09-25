@@ -53,8 +53,17 @@ function normalize(input, registry = defaultRegistry, now = new Date()) {
   return { projectId: route.tilda_project_id, formId: route.form_id, transactionId, identityKey, test, route }
 }
 
-function piiFreePayload(route) {
-  return { text: `Новая регистрация на мероприятие · ${route.city_name}`, event_id: route.event_id, city_id: route.city_id, campaign_id: route.campaign_id, route_version: route.version }
+function telegramPayload(route, input) {
+  const name = String(input?.Name || input?.name || '').trim()
+  const phone = String(input?.Phone || input?.phone || '').trim()
+  const email = String(input?.Email || input?.email || '').trim()
+  return {
+    text: [`Новая регистрация на мероприятие · ${route.city_name}`, `Имя: ${name || '—'}`, `Телефон: ${phone || '—'}`, `Email: ${email || '—'}`].join('\n'),
+    event_id: route.event_id,
+    city_id: route.city_id,
+    campaign_id: route.campaign_id,
+    route_version: route.version,
+  }
 }
 
 function createTildaIntakeRepository(pool, registry = defaultRegistry) {
@@ -69,7 +78,13 @@ function createTildaIntakeRepository(pool, registry = defaultRegistry) {
         const inbound = await client.query(`insert into tilda_inbound_submissions(id,project_id,form_id,transaction_id,payload_fingerprint,payload)
           values ($1,$2,$3,$4,$5,$6::jsonb) on conflict (project_id,form_id,transaction_id) do nothing returning id`,
           [crypto.randomUUID(), normalized.projectId, normalized.formId, normalized.transactionId, sha256(stableJson(input)), JSON.stringify(input)])
-        if (!inbound.rowCount) { await client.query('rollback'); return { test: false, inserted: false, duplicate: true, registrations: 0, effects: 0 } }
+        if (!inbound.rowCount) {
+          await client.query('rollback')
+          const existing = await pool.query(`select o.idempotency_key,o.delivery_state,o.telegram_message_id from tilda_inbound_submissions i
+            join event_registrations r on r.inbound_submission_id=i.id join event_registration_outbox o on o.registration_id=r.id
+            where i.project_id=$1 and i.form_id=$2 and i.transaction_id=$3`, [normalized.projectId, normalized.formId, normalized.transactionId])
+          return { test: false, inserted: false, duplicate: true, registrations: 0, effects: 0, idempotency_key: existing.rows[0]?.idempotency_key || null, delivery_state: existing.rows[0]?.delivery_state || null, telegram_message_id: existing.rows[0]?.telegram_message_id || null }
+        }
         const registrationId = crypto.randomUUID()
         const registration = await client.query(`insert into event_registrations(id,inbound_submission_id,event_code,city,identity_key,campaign_id,route_version)
           values ($1,$2,$3,$4,$5,$6,$7) on conflict (event_code,identity_key) do nothing returning id`,
@@ -78,9 +93,9 @@ function createTildaIntakeRepository(pool, registry = defaultRegistry) {
         const effectKey = `tilda:v1:${normalized.projectId}:${normalized.formId}:${normalized.transactionId}:registration:telegram_forum_mirror:v${normalized.route.version}`
         await client.query(`insert into event_registration_outbox(id,registration_id,chat_id,message_thread_id,payload,idempotency_key,delivery_state)
           values ($1,$2,$3,$4,$5::jsonb,$6,$7)`,
-          [crypto.randomUUID(), registrationId, normalized.route.telegram_chat_id, normalized.route.message_thread_id, JSON.stringify(piiFreePayload(normalized.route)), effectKey, mirrorEnabled ? 'queued' : 'held'])
+          [crypto.randomUUID(), registrationId, normalized.route.telegram_chat_id, normalized.route.message_thread_id, JSON.stringify(telegramPayload(normalized.route, input)), effectKey, mirrorEnabled ? 'queued' : 'held'])
         await client.query('commit')
-        return { test: false, inserted: true, duplicate: false, registrations: 1, effects: 1, event_id: normalized.route.event_id, city_id: normalized.route.city_id, campaign_id: normalized.route.campaign_id, chat_id: normalized.route.telegram_chat_id, message_thread_id: normalized.route.message_thread_id, delivery_state: mirrorEnabled ? 'queued' : 'held' }
+        return { test: false, inserted: true, duplicate: false, registrations: 1, effects: 1, event_id: normalized.route.event_id, city_id: normalized.route.city_id, campaign_id: normalized.route.campaign_id, chat_id: normalized.route.telegram_chat_id, message_thread_id: normalized.route.message_thread_id, delivery_state: mirrorEnabled ? 'queued' : 'held', idempotency_key: effectKey }
       } catch (error) { await client.query('rollback'); throw error } finally { client.release() }
     },
     async readback(transactionId) {
@@ -93,4 +108,4 @@ function createTildaIntakeRepository(pool, registry = defaultRegistry) {
   }
 }
 
-module.exports = { defaultRegistry, validateRegistry, resolveRoute, normalize, normalizeTildaWebhookPayload, piiFreePayload, createTildaIntakeRepository }
+module.exports = { defaultRegistry, validateRegistry, resolveRoute, normalize, normalizeTildaWebhookPayload, telegramPayload, createTildaIntakeRepository }
