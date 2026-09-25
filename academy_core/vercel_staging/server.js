@@ -130,6 +130,25 @@ async function readJsonWithRaw(request) {
   return { raw, body: JSON.parse(raw || '{}') }
 }
 
+async function readTildaBody(request) {
+  let raw = ''
+  for await (const chunk of request) {
+    raw += chunk
+    if (raw.length > 65536) throw new Error('request_too_large')
+  }
+  const contentType = String(request.headers['content-type'] || '').toLowerCase()
+  if (contentType.includes('application/x-www-form-urlencoded')) return { raw, body: Object.fromEntries(new URLSearchParams(raw)) }
+  if (contentType.includes('application/json') || !contentType) return { raw, body: JSON.parse(raw || '{}') }
+  throw new Error('content_type_not_supported')
+}
+
+function authorizedTildaDelivery(request) {
+  const supplied = String(request.headers.authorization || '').replace(/^Bearer\s+/i, '')
+  const expected = String(process.env.TILDA_DELIVERY_TEST_SECRET || '')
+  if (expected.length < 32 || supplied.length !== expected.length) return false
+  return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))
+}
+
 function transferPublicKey() {
   const encoded = String(process.env.BATMAN_STORAGE_TRANSFER_PUBLIC_KEY_PEM_BASE64 || '')
   if (!encoded) return null
@@ -283,15 +302,14 @@ async function handleTildaIntake(request, response) {
       return json(response, 200, { ok: true, transaction_id: transactionId, rows })
     }
     if (isSynthetic && url.pathname === '/internal/tilda-intake/deliver' && request.method === 'POST') {
-      const { raw, body } = await readJsonWithRaw(request)
-      const bodyHash = crypto.createHash('sha256').update(raw).digest('hex')
-      if (!verifiedTransferRequest(request, url, bodyHash, String(Buffer.byteLength(raw)))) return json(response, 401, { ok: false })
+      if (!authorizedTildaDelivery(request)) return json(response, 401, { ok: false })
+      const { body } = await readJsonWithRaw(request)
       const options = { repository: createTildaTelegramOutboxRepository(pool), idempotencyKey: String(body.idempotency_key || ''), botToken: String(process.env.BATMAN_TELEGRAM_BOT_TOKEN || '') }
       const result = body.release_selftest === true ? await releaseAndDeliverTildaSelftest(options) : await deliverTildaTelegramOutbox(options)
       return json(response, 200, { ok: true, ...result })
     }
     if (request.method !== 'POST') return json(response, 404, { ok: false })
-    const { raw, body } = await readJsonWithRaw(request)
+    const { raw, body } = isSynthetic ? await readJsonWithRaw(request) : await readTildaBody(request)
     if (isSynthetic) {
       const bodyHash = crypto.createHash('sha256').update(raw).digest('hex')
       if (!verifiedTransferRequest(request, url, bodyHash, String(Buffer.byteLength(raw)))) return json(response, 401, { ok: false })
@@ -301,6 +319,7 @@ async function handleTildaIntake(request, response) {
       if (expected.length < 24 || token !== expected) return json(response, 401, { ok: false })
     }
     const result = await createTildaIntakeRepository(pool).ingest(body, { mirrorEnabled: gates.tildaTelegramMirror })
+    if (!isSynthetic) { response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }); return response.end('ok') }
     return json(response, 200, { ok: true, mirror_enabled: gates.tildaTelegramMirror, ...result })
   } catch (error) {
     console.error('tilda_event_intake_failed', String(error?.code || error?.message || 'request_failed').slice(0, 120))

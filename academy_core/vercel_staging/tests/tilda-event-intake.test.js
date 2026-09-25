@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { defaultRegistry, validateRegistry, resolveRoute, normalize, piiFreePayload } = require('../lib/tilda-event-intake')
+const { defaultRegistry, validateRegistry, resolveRoute, normalize, normalizeTildaWebhookPayload, piiFreePayload } = require('../lib/tilda-event-intake')
 
 function enabledRegistry() {
   return { ...defaultRegistry, global_enabled: true, telegram_sender: { ...defaultRegistry.telegram_sender, membership_and_send_permission_verified: true }, events: defaultRegistry.events.map((event) => ({ ...event, enabled: true })) }
@@ -33,4 +33,13 @@ test('telegram payload contains route metadata and no submitted identity', () =>
   const payload = piiFreePayload(enabledRegistry().events[0])
   assert.deepEqual(Object.keys(payload).sort(), ['campaign_id','city_id','event_id','route_version','text'])
   assert.equal(JSON.stringify(payload).includes('person'), false)
+})
+
+test('normalizes real Tilda webhook field names without retaining raw identity in identity key', () => {
+  const normalized = normalizeTildaWebhookPayload({ formid: 'form4215769301', tranid: '467251:8442970', Email: 'test@example.org' })
+  assert.equal(normalized.project_id, '8607529')
+  assert.equal(normalized.form_id, '4215769301')
+  assert.equal(normalized.transaction_id, '467251:8442970')
+  assert.match(normalized.identity_key, /^tilda:[a-f0-9]{64}$/)
+  assert.equal(normalized.identity_key.includes('@'), false)
 })

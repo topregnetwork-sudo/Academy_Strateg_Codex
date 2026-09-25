@@ -8,6 +8,13 @@ function stableJson(value) {
 }
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex') }
 
+function normalizeTildaWebhookPayload(input) {
+  const formId = String(input?.form_id || input?.formid || '').replace(/^form/i, '').trim()
+  const transactionId = String(input?.transaction_id || input?.tranid || '').trim()
+  const identitySource = String(input?.identity_key || input?.Email || input?.email || input?.Phone || input?.phone || transactionId).trim().toLowerCase()
+  return { ...input, project_id: String(input?.project_id || '8607529'), form_id: formId, transaction_id: transactionId, identity_key: input?.identity_key || `tilda:${sha256(identitySource)}` }
+}
+
 function validateRegistry(registry) {
   if (!registry || typeof registry.global_enabled !== 'boolean' || !Array.isArray(registry.events)) throw new Error('routing_registry_invalid')
   const sender = registry.telegram_sender
@@ -53,6 +60,7 @@ function piiFreePayload(route) {
 function createTildaIntakeRepository(pool, registry = defaultRegistry) {
   return {
     async ingest(input, { mirrorEnabled = false, now = new Date() } = {}) {
+      input = normalizeTildaWebhookPayload(input)
       const normalized = normalize(input, registry, now)
       if (normalized.test) return { test: true, inserted: false, registrations: 0, effects: 0 }
       const client = await pool.connect()
@@ -85,4 +93,4 @@ function createTildaIntakeRepository(pool, registry = defaultRegistry) {
   }
 }
 
-module.exports = { defaultRegistry, validateRegistry, resolveRoute, normalize, piiFreePayload, createTildaIntakeRepository }
+module.exports = { defaultRegistry, validateRegistry, resolveRoute, normalize, normalizeTildaWebhookPayload, piiFreePayload, createTildaIntakeRepository }
