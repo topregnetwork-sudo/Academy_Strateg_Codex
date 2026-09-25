@@ -31,6 +31,7 @@ async function runTildaSelftest() {
     const registry = {
       ...tildaRoutingRegistry,
       global_enabled: true,
+      telegram_sender: { ...tildaRoutingRegistry.telegram_sender, membership_and_send_permission_verified: true },
       events: tildaRoutingRegistry.events.map((event) => ({ ...event, enabled: true })),
     };
     const repository = createTildaIntakeRepository(pool, registry);

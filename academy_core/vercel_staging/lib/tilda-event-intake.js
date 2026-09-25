@@ -10,6 +10,8 @@ function sha256(value) { return crypto.createHash('sha256').update(value).digest
 
 function validateRegistry(registry) {
   if (!registry || typeof registry.global_enabled !== 'boolean' || !Array.isArray(registry.events)) throw new Error('routing_registry_invalid')
+  const sender = registry.telegram_sender
+  if (!sender || sender.bot_key !== 'batman_strateg_bot' || JSON.stringify(sender.allowed_methods) !== JSON.stringify(['sendMessage']) || sender.inbound_updates_enabled !== false || typeof sender.membership_and_send_permission_verified !== 'boolean') throw new Error('routing_telegram_sender_invalid')
   const keys = new Set()
   for (const event of registry.events) {
     for (const field of ['event_id','city_id','city_name','tilda_project_id','form_id','campaign_id','telegram_chat_id','active_from','active_to']) {
@@ -30,7 +32,7 @@ function resolveRoute(input, registry = defaultRegistry, now = new Date()) {
   const route = registry.events.find((event) => event.tilda_project_id === projectId && event.form_id === formId)
   if (!route) throw new Error('form_not_allowed')
   const active = now >= new Date(route.active_from) && now <= new Date(route.active_to)
-  return { ...route, registry_version: registry.registry_version, routable: registry.global_enabled && route.enabled && active, active }
+  return { ...route, registry_version: registry.registry_version, telegram_sender: registry.telegram_sender, routable: registry.global_enabled && route.enabled && active && registry.telegram_sender.membership_and_send_permission_verified, active }
 }
 
 function normalize(input, registry = defaultRegistry, now = new Date()) {
