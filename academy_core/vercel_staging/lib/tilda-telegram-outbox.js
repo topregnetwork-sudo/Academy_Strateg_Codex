@@ -42,7 +42,7 @@ async function deliverTildaTelegramOutbox({ repository, idempotencyKey, botToken
   try {
     const payload = job.payload || {}
     if (Object.keys(payload).some((key) => ['name','email','phone','identity_key'].includes(key))) throw new Error('tilda_outbox_pii_detected')
-    const sent = await sendText({ botToken, chatId: job.chat_id, messageThreadId: Number(job.message_thread_id), text: String(payload.text || ''), fetchImpl })
+    const sent = await sendText({ botToken, chatId: job.chat_id, messageThreadId: Number(job.message_thread_id), text: String(payload.text || ''), idempotencyKey: job.idempotency_key, fetchImpl })
     await repository.markDelivered(job.id, sent.messageId)
     return { state: 'delivered', duplicate: false, messageId: sent.messageId, chatId: job.chat_id, messageThreadId: Number(job.message_thread_id) }
   } catch (error) {

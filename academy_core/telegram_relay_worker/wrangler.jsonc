@@ -1,0 +1,11 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "academy-telegram-relay-run00r",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-09-26",
+  "observability": { "enabled": true, "head_sampling_rate": 0.1 },
+  "vars": {
+    "RELAY_ENABLED": "false",
+    "ALLOWED_DESTINATIONS": "6100981026:0,-1004404302282:2,-1004404302282:4"
+  }
+}

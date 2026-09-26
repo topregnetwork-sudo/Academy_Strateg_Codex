@@ -97,7 +97,7 @@ async function syntheticRoundTrip({ repository, botKey, botToken, expectedChatId
   const job = await repository.leaseOne(ingested.outbox.id)
   if (!job) return { state: ingested.outbox.delivery_state, duplicate: true }
   try {
-    const sent = await sendText({ botToken, chatId: expectedChatId, text: job.payload.text, fetchImpl })
+    const sent = await sendText({ botToken, chatId: expectedChatId, text: job.payload.text, idempotencyKey: job.idempotency_key, fetchImpl })
     await repository.markDelivered(job, sent.messageId, campaignId)
     return { state: 'delivered', duplicate: !ingested.inserted, messageId: sent.messageId }
   } catch (error) {
