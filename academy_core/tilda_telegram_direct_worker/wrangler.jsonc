@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "academy-tilda-telegram-direct",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-09-26",
+  "observability": { "enabled": false },
+  "vars": {
+    "TILDA_DIRECT_ENABLED": "false",
+    "ALLOWED_DESTINATIONS": "-1004404302282:2,-1004404302282:4"
+  },
+  "d1_databases": [{
+    "binding": "RECEIPTS",
+    "database_name": "academy-tilda-telegram-receipts",
+    "database_id": "edd7af80-1460-4bcf-a94b-d8d13d5238f6"
+  }]
+}
