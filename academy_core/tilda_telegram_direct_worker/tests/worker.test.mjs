@@ -10,8 +10,15 @@ test('maps only the two approved forms to isolated topics', () => {
 
 test('normalizes a Tilda form payload without retaining PII', () => {
   const value = normalizePayload('formid=form3744984501&tranid=owner-test-1&Name=Max&Phone=%2B1+23', 'application/x-www-form-urlencoded')
-  assert.deepEqual(value, { projectId: '8607529', formId: '3744984501', transactionId: 'owner-test-1', ownerPhone: '123' })
+  assert.deepEqual(value, { projectId: '8607529', formId: '3744984501', transactionId: 'owner-test-1', ownerPhone: '123', test: false })
   assert.equal(JSON.stringify(value).includes('secret'), false)
+})
+
+test('recognizes the official Tilda validation probe without form or transaction', () => {
+  const value = normalizePayload('test=test', 'application/x-www-form-urlencoded')
+  assert.equal(value.test, true)
+  assert.equal(value.formId, '')
+  assert.equal(value.transactionId, '')
 })
 
 test('allowlist and timing-safe comparison fail closed', () => {

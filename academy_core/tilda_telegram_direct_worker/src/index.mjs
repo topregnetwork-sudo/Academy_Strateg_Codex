@@ -17,6 +17,7 @@ function normalizePayload(raw, contentType) {
     formId: String(input.form_id || input.formid || '').replace(/^form/i, '').trim(),
     transactionId: String(input.transaction_id || input.tranid || '').trim(),
     ownerPhone: String(input.Phone || input.phone || '').replace(/\D/g, ''),
+    test: String(input.test || '').toLowerCase() === 'test',
   }
 }
 
@@ -38,6 +39,7 @@ async function handleRegistration(request, env) {
   if (raw.length > 16384) return json(413, { ok: false })
   let payload
   try { payload = normalizePayload(raw, String(request.headers.get('content-type') || '')) } catch { return json(400, { ok: false }) }
+  if (payload.test) return new Response('ok', { status: 200, headers: { 'content-type': 'text/plain; charset=utf-8', 'x-academy-validation': 'true' } })
   const route = ROUTES[payload.formId]
   if (payload.projectId !== '8607529' || !route || !payload.transactionId || payload.transactionId.length > 160 || !allowed(env, route.chatId, route.threadId)) return json(403, { ok: false })
   const ownerPhoneHash = await sha256(payload.ownerPhone)
