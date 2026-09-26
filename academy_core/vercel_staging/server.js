@@ -24,8 +24,67 @@ const runtimeState = {
   lastOperationId: null,
   tildaSelftest: 'disabled',
   tildaSelftestReadback: null,
+  run00r: 'disabled',
+  run00rReadback: null,
   startedAt: new Date().toISOString(),
 };
+
+async function runOwnerSynthetic() {
+  if (String(process.env.RUN00R_OWNER_SYNTHETIC_ENABLED || '').toLowerCase() !== 'true') return;
+  runtimeState.run00r = 'running';
+  const pool = new Pool(databaseConfig(process.env));
+  const testRunId = 'run00r-owner-20260926-001';
+  const updateId = 2026092601;
+  try {
+    const ownerChatId = String(process.env.RUN00R_OWNER_CHAT_ID || '');
+    if (!/^\d{6,15}$/.test(ownerChatId)) throw new Error('run00r_owner_chat_id_invalid');
+    const migration = fs.readFileSync(path.join(__dirname, 'migrations', '0008_batman_telegram_synthetic_contract.sql'), 'utf8');
+    await pool.query(migration);
+    const before = await pool.query(`
+      select
+        (select count(*)::int from batman_candidate_storage) as candidate_cards,
+        (select count(*)::int from batman_campaigns where id=$1) as campaigns,
+        (select count(*)::int from batman_telegram_updates where bot_key=$2 and update_id=$3) as updates,
+        (select count(*)::int from batman_telegram_outbox where idempotency_key=$4) as outbox
+    `, [testRunId, 'batman_strateg_bot', updateId, `${testRunId}:batman_strateg_bot:${updateId}:reply`]);
+    const result = await syntheticRoundTrip({
+      repository: createSyntheticTelegramRepository(pool),
+      botKey: 'batman_strateg_bot',
+      botToken: String(process.env.BATMAN_TELEGRAM_BOT_TOKEN || ''),
+      expectedChatId: ownerChatId,
+      campaignId: testRunId,
+      update: { update_id: updateId, message: { from: { id: Number(ownerChatId) }, chat: { id: Number(ownerChatId) } } },
+    });
+    const after = await pool.query(`
+      select
+        (select count(*)::int from batman_candidate_storage) as candidate_cards,
+        (select count(*)::int from batman_campaigns where id=$1) as campaigns,
+        (select count(*)::int from batman_telegram_updates where bot_key=$2 and update_id=$3) as updates,
+        (select count(*)::int from batman_telegram_outbox where idempotency_key=$4) as outbox,
+        (select delivery_state from batman_telegram_outbox where idempotency_key=$4) as delivery_state,
+        (select telegram_message_id from batman_telegram_outbox where idempotency_key=$4) as message_id
+    `, [testRunId, 'batman_strateg_bot', updateId, `${testRunId}:batman_strateg_bot:${updateId}:reply`]);
+    const b = before.rows[0];
+    const a = after.rows[0];
+    runtimeState.run00r = 'passed';
+    runtimeState.run00rReadback = {
+      test_run_id: testRunId,
+      state: result.state,
+      duplicate: result.duplicate,
+      message_id: result.messageId,
+      campaign_rows: a.campaigns,
+      update_rows: a.updates,
+      outbox_rows: a.outbox,
+      delivery_state: a.delivery_state,
+      persisted_message_id: Number(a.message_id),
+      candidate_card_delta: Number(a.candidate_cards) - Number(b.candidate_cards),
+    };
+  } catch (error) {
+    runtimeState.run00r = 'failed';
+    runtimeState.run00rReadback = { code: String(error?.code || error?.message || 'run00r_failed').slice(0, 120) };
+    console.error('run00r_owner_synthetic_failed', runtimeState.run00rReadback.code);
+  } finally { await pool.end(); }
+}
 
 async function runTildaSelftest() {
   if (!liveGates(process.env).tildaSelftest) return;
@@ -365,4 +424,5 @@ server.listen(port, host, () => {
   console.log(`batman_runtime_listening:${port}`);
   void runBoundedWorker();
   void runTildaSelftest();
+  void runOwnerSynthetic();
 });

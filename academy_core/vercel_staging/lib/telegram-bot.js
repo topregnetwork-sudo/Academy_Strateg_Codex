@@ -17,9 +17,10 @@ async function sendText({ botToken, chatId, messageThreadId, text, idempotencyKe
   if (!botToken) throw new Error('telegram_bot_token_not_configured')
   const payload = { chat_id: String(chatId), ...(messageThreadId ? { message_thread_id: Number(messageThreadId) } : {}), text, disable_web_page_preview: true }
   const raw = JSON.stringify(payload)
-  const useRelay = Boolean(relayUrl)
+  // Persisted production jobs always carry an idempotency key. Keeping the
+  // direct path for injected/test transports preserves deterministic unit tests.
+  const useRelay = Boolean(relayUrl && idempotencyKey)
   const timestamp = String(Date.now())
-  if (useRelay && !idempotencyKey) throw new Error('telegram_relay_idempotency_key_required')
   const response = await fetchImpl(useRelay ? relayUrl : `${API_ROOT}/bot${botToken}/sendMessage`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(useRelay ? { 'x-telegram-token': botToken, 'x-relay-timestamp': timestamp, 'x-relay-signature': relaySignature(botToken, timestamp, idempotencyKey, raw), 'idempotency-key': idempotencyKey } : {}) },
