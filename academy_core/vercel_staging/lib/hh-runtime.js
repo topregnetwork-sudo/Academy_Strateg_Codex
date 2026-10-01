@@ -204,17 +204,20 @@ function createHHRuntime(env = process.env, deps = {}) {
       }
       const body = JSON.parse(raw)
       const callbackId = String(body.id || '')
-      const eventType = String(body.type || body.action?.type || '')
+      const eventType = String(body.action_type || '')
       const suppliedSubscriptionId = String(body.subscription_id || body.subscription?.id || '')
+      const payload = body.payload || {}
       const connection = await store.connection()
       if (!callbackId || eventType !== 'NEW_NEGOTIATION_VACANCY' || !connection?.webhook_subscription_id ||
-          (suppliedSubscriptionId && suppliedSubscriptionId !== connection.webhook_subscription_id)) {
+          suppliedSubscriptionId !== connection.webhook_subscription_id ||
+          String(body.user_id || '') !== String(connection.manager_id || '') ||
+          String(payload.employer_id || '') !== '1702778' ||
+          String(payload.vacancy_id || '') !== '136455388') {
         return json(response, 400, { ok: false })
       }
       const subscriptionId = connection.webhook_subscription_id
       const result = await store.webhookEvent({ applicationId: APPLICATION_ID, subscriptionId, callbackId,
-        payloadHash: sha256(raw), eventType, vacancyId: body.vacancy?.id ? String(body.vacancy.id) : null,
-        negotiationId: body.negotiation?.id ? String(body.negotiation.id) : null })
+        payloadHash: sha256(raw), eventType, vacancyId: String(payload.vacancy_id), negotiationId: null })
       if (result === 'conflict') return json(response, 409, { ok: false })
       if (result === 'duplicate') return json(response, 200, { ok: true, duplicate: true })
       json(response, 200, { ok: true })
