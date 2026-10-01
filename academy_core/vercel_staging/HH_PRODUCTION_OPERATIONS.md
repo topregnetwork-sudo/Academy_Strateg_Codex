@@ -53,10 +53,14 @@ selected older commit. Existing Batman/Tilda environment variables must remain.
    Chelyabinsk/other chat counts and explicit unknowns. A `partial` status means
    no more than 100 participant metadata reads were done in that cycle; all
    unscanned chats remain unknown, not eligible. The owner-only route
-   `/integrations/hh/chats/owner-readback?bucket=CHELYABINSK_PROVEN&page=0`
-   requires `Authorization: Bearer <HH_CHAT_READBACK_TOKEN>` and returns at most
-   20 opaque chat aliases per page. Never paste the response or token into a
-   shared report. No message endpoint is used by this inventory.
+   `/integrations/hh/chats/owner-readback?bucket=CHELYABINSK_PROVEN&run_id=<approved-run>&snapshot_hash=<approved-hash>&owner_alias=<approved-HC-alias>&max_read=1`
+   requires `Authorization: Bearer <HH_CHAT_READBACK_TOKEN>` and returns exactly
+   one explicitly selected opaque chat alias. All five unique query parameters
+   are mandatory. The run ID and snapshot hash must match the latest immutable
+   run, the alias must have exactly one match in that run/bucket, and the
+   response contains `response_count=1`. A missing, duplicate, unexpected or
+   mismatched selector fails closed. Never paste the response or token into a
+   shared report. No HH provider or message endpoint is used by this readback.
 5. Enable webhook only after a complete readback. Verify HH subscription ID and
    a bounded duplicate callback. The callback must trigger a reconciliation
    cycle; it must not send anything to Telegram.

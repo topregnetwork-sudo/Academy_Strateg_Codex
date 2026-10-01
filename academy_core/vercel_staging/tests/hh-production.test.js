@@ -264,15 +264,24 @@ test('two negotiations for one resume never become an automatic chat identity', 
   assert.equal(run.counts.unknown_identity, 1)
 })
 
-test('owner chat readback is unavailable without a protected token and never returns IDs', async () => {
-  const row = { chat_alias: 'HC-opaque', vacancy_bucket: 'CHELYABINSK_PROVEN', unread_count: 1,
+test('owner chat readback requires exact immutable selectors and never calls provider messages', async () => {
+  const runId = '11111111-1111-4111-8111-111111111111'
+  const snapshotHash = 'b'.repeat(64)
+  const ownerAlias = `HC-${'a'.repeat(24)}`
+  const row = { chat_alias: ownerAlias, vacancy_bucket: 'CHELYABINSK_PROVEN', unread_count: 1,
     last_message_marker: 'opaque-marker', participant_viewed_markers: [],
     link_status: 'PROVIDER_LINKED', identity_linked: false,
     chat_id_box: { private: 'provider-id' }, negotiation_id: 'provider-negotiation-id' }
+  const calls = []
   const make = token => createHHRuntime({ HH_OAUTH_ENABLED: 'false',
-    HH_CHAT_READBACK_TOKEN: token }, { pool: {}, store: { chatLinkReadback: async () => ({
-      run: { run_id: 'run-id', snapshot_hash: 'hash', observed_at: '2026-10-01T00:00:00Z',
-        counts: { total_chats: 1, unknown_identity: 1 } }, rows: [row] }) } })
+    HH_CHAT_READBACK_TOKEN: token }, { pool: {}, store: { chatLinkReadback: async scope => {
+      calls.push(scope)
+      if (scope.runId !== runId) throw new Error('HH_CHAT_LINK_READBACK_RUN_MISMATCH')
+      if (scope.ownerAlias !== ownerAlias) throw new Error('HH_CHAT_LINK_READBACK_ALIAS_NOT_UNIQUE')
+      return ({
+      run: { run_id: runId, snapshot_hash: snapshotHash, observed_at: '2026-10-01T00:00:00Z',
+        counts: { total_chats: 1, unknown_identity: 1 } }, rows: [row] })
+    } } })
   const disabled = make('')
   const protectedRuntime = make('r'.repeat(48))
   const server = http.createServer((req, res) => {
@@ -283,14 +292,74 @@ test('owner chat readback is unavailable without a protected token and never ret
     const origin = `http://127.0.0.1:${server.address().port}`
     assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback?disabled=1`)).status, 404)
     assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback`)).status, 401)
-    const response = await fetch(`${origin}/integrations/hh/chats/owner-readback`,
+    assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback`,
+      { headers: { authorization: `Bearer ${'r'.repeat(48)}` } })).status, 400)
+    const exact = `bucket=CHELYABINSK_PROVEN&run_id=${runId}&snapshot_hash=${snapshotHash}` +
+      `&owner_alias=${ownerAlias}`
+    assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback?${exact}&max_read=2`,
+      { headers: { authorization: `Bearer ${'r'.repeat(48)}` } })).status, 400)
+    assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback?${exact}` +
+      `&owner_alias=${ownerAlias}&max_read=1`,
+    { headers: { authorization: `Bearer ${'r'.repeat(48)}` } })).status, 400)
+    assert.equal(calls.length, 0)
+    assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback?${exact.replace(runId,
+      '22222222-2222-4222-8222-222222222222')}&max_read=1`,
+    { headers: { authorization: `Bearer ${'r'.repeat(48)}` } })).status, 400)
+    assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback?${exact.replace(ownerAlias,
+      `HC-${'c'.repeat(24)}`)}&max_read=1`,
+    { headers: { authorization: `Bearer ${'r'.repeat(48)}` } })).status, 400)
+    const response = await fetch(`${origin}/integrations/hh/chats/owner-readback?${exact}&max_read=1`,
       { headers: { authorization: `Bearer ${'r'.repeat(48)}` } })
     assert.equal(response.status, 200)
-    const body = await response.text()
-    assert.equal(body.includes('HC-opaque'), true)
-    assert.equal(body.includes('provider-id'), false)
-    assert.equal(body.includes('provider-negotiation-id'), false)
+    const body = await response.json()
+    assert.equal(body.response_count, 1)
+    assert.equal(body.owner_alias, ownerAlias)
+    assert.equal(JSON.stringify(body).includes('provider-id'), false)
+    assert.equal(JSON.stringify(body).includes('provider-negotiation-id'), false)
+    assert.equal(calls.length, 3)
+    assert.deepEqual(calls[2], { bucket: 'CHELYABINSK_PROVEN', runId, snapshotHash,
+      ownerAlias, maxRead: 1 })
   } finally { server.close() }
+})
+
+test('owner chat readback store binds run, snapshot and alias and rejects zero or duplicate matches', async () => {
+  const runId = '11111111-1111-4111-8111-111111111111'
+  const snapshotHash = 'b'.repeat(64)
+  const ownerAlias = `HC-${'a'.repeat(24)}`
+  const missingAlias = `HC-${'c'.repeat(24)}`
+  const duplicateAlias = `HC-${'d'.repeat(24)}`
+  const queries = []
+  const store = hhStore({ query: async (sql, params) => {
+    queries.push({ sql: String(sql), params })
+    if (String(sql).includes('from hh_chat_link_runs')) {
+      return { rows: [{ run_id: runId, snapshot_hash: snapshotHash }] }
+    }
+    if (params[2] === missingAlias) return { rows: [] }
+    if (params[2] === duplicateAlias) return { rows: [
+      { chat_alias: duplicateAlias, match_count: 2 },
+      { chat_alias: duplicateAlias, match_count: 2 },
+    ] }
+    return { rows: [{ chat_alias: ownerAlias, match_count: 1 }] }
+  } })
+  const exact = { bucket: 'CHELYABINSK_PROVEN', runId, snapshotHash, ownerAlias, maxRead: 1 }
+  await assert.rejects(store.chatLinkReadback(), /HH_CHAT_LINK_READBACK_SCOPE_INVALID/)
+  await assert.rejects(store.chatLinkReadback({ ...exact, maxRead: 2 }), /HH_CHAT_LINK_READBACK_SCOPE_INVALID/)
+  await assert.rejects(store.chatLinkReadback({ ...exact,
+    runId: '22222222-2222-4222-8222-222222222222' }), /HH_CHAT_LINK_READBACK_RUN_MISMATCH/)
+  await assert.rejects(store.chatLinkReadback({ ...exact,
+    snapshotHash: 'e'.repeat(64) }), /HH_CHAT_LINK_READBACK_RUN_MISMATCH/)
+  await assert.rejects(store.chatLinkReadback({ ...exact,
+    ownerAlias: missingAlias }), /HH_CHAT_LINK_READBACK_ALIAS_NOT_UNIQUE/)
+  await assert.rejects(store.chatLinkReadback({ ...exact,
+    ownerAlias: duplicateAlias }), /HH_CHAT_LINK_READBACK_ALIAS_NOT_UNIQUE/)
+  const result = await store.chatLinkReadback(exact)
+  assert.equal(result.rows.length, 1)
+  assert.equal(result.rows[0].match_count, undefined)
+  const linkQuery = queries.at(-1)
+  assert.match(linkQuery.sql, /chat_alias=\$3/)
+  assert.match(linkQuery.sql, /count\(\*\) over\(\)::int as match_count/)
+  assert.match(linkQuery.sql, /limit 1/)
+  assert.deepEqual(linkQuery.params, [runId, 'CHELYABINSK_PROVEN', ownerAlias])
 })
 
 test('protected HH database count readback exposes only numeric aggregates', async () => {

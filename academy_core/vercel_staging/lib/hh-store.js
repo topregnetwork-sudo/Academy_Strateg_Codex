@@ -97,17 +97,28 @@ function hhStore(pool) {
     } finally { client.release() }
   }
 
-  async function chatLinkReadback({ bucket = 'CHELYABINSK_PROVEN', page = 0 } = {}) {
-    if (!['CHELYABINSK_PROVEN', 'OTHER', 'UNKNOWN'].includes(bucket) ||
-        !Number.isSafeInteger(page) || page < 0 || page > 1000) throw new Error('HH_CHAT_LINK_READBACK_SCOPE_INVALID')
+  async function chatLinkReadback({ bucket, runId, snapshotHash, ownerAlias, maxRead } = {}) {
+    if (bucket !== 'CHELYABINSK_PROVEN' || maxRead !== 1 ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId || '') ||
+        !/^[0-9a-f]{64}$/i.test(snapshotHash || '') || !/^HC-[0-9a-f]{24}$/.test(ownerAlias || '')) {
+      throw new Error('HH_CHAT_LINK_READBACK_SCOPE_INVALID')
+    }
     const current = await pool.query(`select run_id,snapshot_hash,observed_at,counts
       from hh_chat_link_runs order by created_at desc,run_id desc limit 1`)
     const run = current.rows[0]
     if (!run) return null
+    if (String(run.run_id) !== runId || String(run.snapshot_hash) !== snapshotHash) {
+      throw new Error('HH_CHAT_LINK_READBACK_RUN_MISMATCH')
+    }
     const links = await pool.query(`select chat_alias,vacancy_bucket,unread_count,
-      last_message_marker,participant_viewed_markers,link_status,identity_linked
-      from hh_chat_links where run_id=$1 and vacancy_bucket=$2
-      order by chat_alias limit 20 offset $3`, [run.run_id, bucket, page * 20])
+      last_message_marker,participant_viewed_markers,link_status,identity_linked,
+      count(*) over()::int as match_count
+      from hh_chat_links where run_id=$1 and vacancy_bucket=$2 and chat_alias=$3
+      order by chat_alias limit 1`, [run.run_id, bucket, ownerAlias])
+    if (links.rows.length !== 1 || Number(links.rows[0].match_count) !== 1) {
+      throw new Error('HH_CHAT_LINK_READBACK_ALIAS_NOT_UNIQUE')
+    }
+    delete links.rows[0].match_count
     return { run, rows: links.rows }
   }
 

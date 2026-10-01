@@ -323,13 +323,25 @@ function createHHRuntime(env = process.env, deps = {}) {
         return json(response, 401, { ok: false })
       }
       try {
-        const bucket = url.searchParams.get('bucket') || 'CHELYABINSK_PROVEN'
-        const page = Number(url.searchParams.get('page') || '0')
-        const result = await store.chatLinkReadback({ bucket, page })
+        const required = ['bucket', 'run_id', 'snapshot_hash', 'owner_alias', 'max_read']
+        if ([...url.searchParams.keys()].some(key => !required.includes(key)) ||
+            required.some(key => url.searchParams.getAll(key).length !== 1)) {
+          return json(response, 400, { ok: false })
+        }
+        const bucket = url.searchParams.get('bucket')
+        const runId = url.searchParams.get('run_id')
+        const snapshotHash = url.searchParams.get('snapshot_hash')
+        const ownerAlias = url.searchParams.get('owner_alias')
+        if (bucket !== 'CHELYABINSK_PROVEN' || url.searchParams.get('max_read') !== '1') {
+          return json(response, 400, { ok: false })
+        }
+        const result = await store.chatLinkReadback({ bucket, runId, snapshotHash,
+          ownerAlias, maxRead: 1 })
         if (!result) return json(response, 404, { ok: false })
         return json(response, 200, { ok: true, run_id: result.run.run_id,
           snapshot_hash: result.run.snapshot_hash, observed_at: result.run.observed_at,
-          counts: result.run.counts, bucket, page,
+          counts: result.run.counts, bucket, owner_alias: ownerAlias,
+          max_read: 1, response_count: result.rows.length,
           chats: result.rows.map(operatorProjection) })
       } catch (_) { return json(response, 400, { ok: false }) }
     }
