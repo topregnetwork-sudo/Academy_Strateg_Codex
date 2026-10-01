@@ -8,7 +8,7 @@ const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl, signRece
 const { hhApi } = require('../lib/hh-api')
 const { managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
-const { createHHRuntime } = require('../lib/hh-runtime')
+const { createHHRuntime, startErrorCode } = require('../lib/hh-runtime')
 
 const keyValue = randomBytes(32).toString('base64url')
 
@@ -152,6 +152,27 @@ test('HH worker disabled does not create requests or alter independent Telegram 
   await runtime.runCycle()
   assert.equal(calls, 0)
   assert.equal(fs.existsSync(path.join(__dirname, '..', 'lib', 'telegram-bot.js')), true)
+})
+
+test('OAuth startup exposes only redacted configuration or storage error codes', async () => {
+  assert.equal(startErrorCode(new Error('HH_CREDENTIALS_REQUIRED')), 'HH_CREDENTIALS_REQUIRED')
+  assert.equal(startErrorCode(new Error('password=private')), 'HH_START_STORAGE_OR_RUNTIME_FAILED')
+  const pool = { query: async () => ({ rows: [] }) }
+  const missing = createHHRuntime({ HH_OAUTH_ENABLED: 'true', HH_SCHEMA_MIGRATE_ON_START: 'true',
+    HH_TOKEN_ENCRYPTION_KEY: keyValue, HH_API_USER_AGENT: 'Academy/1.0 (owner@example.com)' }, { pool, store: {} })
+  await missing.start()
+  assert.equal(missing.state.schema, 'ready')
+  assert.equal(missing.state.connection, 'configuration_blocked')
+  assert.equal(missing.state.lastError, 'HH_CREDENTIALS_REQUIRED')
+
+  const blocked = createHHRuntime({ HH_OAUTH_ENABLED: 'true', HH_SCHEMA_MIGRATE_ON_START: 'true',
+    HH_CLIENT_ID: 'id', HH_CLIENT_SECRET: 'private', HH_TOKEN_ENCRYPTION_KEY: keyValue,
+    HH_API_USER_AGENT: 'Academy/1.0 (owner@example.com)' },
+  { pool: { query: async sql => { if (String(sql).startsWith('select 1')) throw new Error('private DB error'); return { rows: [] } } },
+    store: {} })
+  await blocked.start()
+  assert.equal(blocked.state.lastError, 'HH_START_STORAGE_OR_RUNTIME_FAILED')
+  assert.equal(JSON.stringify(blocked.state).includes('private'), false)
 })
 
 test('production OAuth callback consumes state once and exposes no token or code', async () => {

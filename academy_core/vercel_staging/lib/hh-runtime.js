@@ -35,6 +35,12 @@ function validTokenResponse(tokens) {
     typeof tokens.refresh_token === 'string' && tokens.refresh_token.length >= 20
 }
 
+function startErrorCode(error) {
+  const code = String(error?.message || '')
+  return ['HH_KEY_INVALID', 'HH_CREDENTIALS_REQUIRED', 'HH_USER_AGENT_REQUIRED'].includes(code)
+    ? code : 'HH_START_STORAGE_OR_RUNTIME_FAILED'
+}
+
 function createHHRuntime(env = process.env, deps = {}) {
   const pool = deps.pool || new Pool(databaseConfig(env))
   const store = deps.store || hhStore(pool)
@@ -142,6 +148,15 @@ function createHHRuntime(env = process.env, deps = {}) {
     try { await migrate() }
     catch (_) { state.schema = 'failed'; state.lastError = 'HH_SCHEMA_FAILED'; return }
     if (!enabled()) return
+    try {
+      encryptionKey(env)
+      hhApi(env, fetchImpl)
+      await pool.query('select 1 from hh_oauth_sessions limit 1')
+    } catch (error) {
+      state.connection = 'configuration_blocked'
+      state.lastError = startErrorCode(error)
+      return
+    }
     timer = setInterval(() => { void runCycle() }, POLL_MS)
     timer.unref?.()
     void runCycle()
@@ -164,7 +179,10 @@ function createHHRuntime(env = process.env, deps = {}) {
         'set-cookie': `hh_oauth_session=${browser}; Path=/integrations/hh/oauth; Max-Age=600; HttpOnly; Secure; SameSite=Lax`,
         'cache-control': 'no-store', 'referrer-policy': 'no-referrer' })
       response.end()
-    } catch (_) { json(response, 503, { ok: false, code: 'HH_START_UNAVAILABLE' }) }
+    } catch (error) {
+      state.lastError = startErrorCode(error)
+      json(response, 503, { ok: false, code: 'HH_START_UNAVAILABLE' })
+    }
   }
 
   async function oauthCallback(request, response, url) {
@@ -251,4 +269,4 @@ function createHHRuntime(env = process.env, deps = {}) {
   return { start, handle, runCycle, state }
 }
 
-module.exports = { createHHRuntime, tokenExpiry, validTokenResponse }
+module.exports = { createHHRuntime, tokenExpiry, validTokenResponse, startErrorCode }
