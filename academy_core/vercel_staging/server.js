@@ -10,6 +10,7 @@ const { ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResou
 const { createTildaIntakeRepository } = require('./lib/tilda-event-intake');
 const { createTildaTelegramOutboxRepository, deliverTildaTelegramOutbox, releaseAndDeliverTildaSelftest } = require('./lib/tilda-telegram-outbox');
 const { runTildaBackfill } = require('./lib/tilda-backfill');
+const { createHHRuntime } = require('./lib/hh-runtime');
 const tildaRoutingRegistry = require('./config/tilda-event-routing.v1.json');
 
 function enabledTildaRegistry() {
@@ -26,6 +27,8 @@ const runtimeState = {
   tildaSelftestReadback: null,
   startedAt: new Date().toISOString(),
 };
+const hhRuntime = (process.env.HH_OAUTH_ENABLED === 'true' || process.env.HH_SCHEMA_MIGRATE_ON_START === 'true')
+  ? createHHRuntime(process.env) : null;
 
 async function runTildaSelftest() {
   if (!liveGates(process.env).tildaSelftest) return;
@@ -341,6 +344,11 @@ async function handleTildaIntake(request, response) {
 }
 
 const server = http.createServer((request, response) => {
+  if (request.url?.startsWith('/integrations/hh/')) {
+    if (!hhRuntime) return json(response, 404, { ok: false });
+    void hhRuntime.handle(request, response);
+    return;
+  }
   if (request.url?.startsWith('/internal/tilda-intake/') || request.url?.startsWith('/api/intake/tilda-registration')) {
     void handleTildaIntake(request, response);
     return;
@@ -365,4 +373,5 @@ server.listen(port, host, () => {
   console.log(`batman_runtime_listening:${port}`);
   void runBoundedWorker();
   void runTildaSelftest();
+  if (hhRuntime) void hhRuntime.start();
 });
