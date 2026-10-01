@@ -6,6 +6,7 @@ const { randomBytes } = require('node:crypto')
 const http = require('node:http')
 const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl, signReceiver } = require('../lib/hh-security')
 const { hhApi } = require('../lib/hh-api')
+const { inventoryChats, probeNoViewed } = require('../lib/hh-chats')
 const { managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
 const { createHHRuntime, startErrorCode, callbackErrorCode } = require('../lib/hh-runtime')
@@ -84,6 +85,90 @@ test('metadata projection excludes raw resume, contact, actions and messages', (
   assert.equal(JSON.stringify(value).includes('PUT'), false)
 })
 
+test('current Chats API inventory is vacancy-scoped and discards message content', async () => {
+  const calls = []
+  const api = { get: async url => {
+    calls.push(String(url))
+    return { page: 0, pages: 1, items: [{ id: '36', type: 'NEGOTIATION', unread_message_count: 1,
+      last_message: { id: '38', payload: { text: 'private message' } } }] }
+  } }
+  const result = await inventoryChats({ api, token: 'opaque', vacancyIds: ['136453079'] })
+  assert.equal(calls.length, 1)
+  assert.match(calls[0], /filter_with_vacancy_ids=%5B136453079%5D/)
+  assert.deepEqual(result.chats, [{ chatId: '36', type: 'NEGOTIATION', unreadCount: 1, lastMessageId: '38' }])
+  assert.equal(JSON.stringify(result).includes('private message'), false)
+})
+
+test('one-chat no-viewed probe fails closed if the unread marker changes', async () => {
+  let inventories = 0
+  const api = { get: async url => {
+    const value = String(url)
+    if (value.startsWith('/common/chats?')) {
+      inventories++
+      return { page: 0, pages: 1, items: [{ id: '36', unread_message_count: inventories === 1 ? 1 : 0 }] }
+    }
+    if (value.includes('/participants?')) return { items: [{ id: '2', role: 'APPLICANT', last_viewed_message_id: '38' }] }
+    if (value.includes('/counters/unread')) return { unread_chats_count: '1' }
+    if (value.includes('/messages?')) return { messages: [{ id: '38', payload: { text: 'private' } }] }
+    throw new Error('unexpected request')
+  } }
+  await assert.rejects(probeNoViewed({ api, token: 'opaque', vacancyIds: ['136453079'], candidateChatId: '36' }),
+    /HH_CHAT_VIEWED_EFFECT_UNPROVEN/)
+})
+
+test('stable one-chat probe returns only counts from the official messages shape', async () => {
+  const api = { get: async url => {
+    const value = String(url)
+    if (value.startsWith('/common/chats?')) return { page: 0, pages: 1,
+      items: [{ id: '36', unread_message_count: 1, last_message: { id: '38' } }] }
+    if (value.includes('/participants?')) return { items: [{ id: '2', role: 'APPLICANT', last_viewed_message_id: '38' }] }
+    if (value.includes('/counters/unread')) return { unread_chats_count: '1' }
+    if (value.includes('/messages?')) return { messages: [{ id: '38', payload: { text: 'private' } }] }
+    throw new Error('unexpected request')
+  } }
+  const result = await probeNoViewed({ api, token: 'opaque', vacancyIds: ['136453079'], candidateChatId: '36' })
+  assert.deepEqual(result, { messageRowsObserved: 1, viewedEffect: 'not_observed', messagesStored: 0, sends: 0 })
+  assert.equal(JSON.stringify(result).includes('private'), false)
+})
+
+test('runtime chat inventory is read-only and reports aggregate counts without content', async () => {
+  const calls = []
+  const key = encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: keyValue })
+  const pool = { connect: async () => ({ query: async () => ({ rows: [{ acquired: true }] }), release: () => {} }) }
+  const store = { connection: async () => ({ status: 'active', expires_at: new Date(Date.now() + 3600000),
+    access_box: seal('opaque-access-token', key), refresh_box: seal('opaque-refresh-token', key) }),
+  saveVacancy: async () => {}, markSync: async () => {} }
+  const fetchImpl = async url => {
+    const target = new URL(String(url))
+    calls.push(target.pathname)
+    let body
+    if (target.pathname.startsWith('/employers/')) body = { page: 0, pages: 1, items: [] }
+    else if (target.pathname.startsWith('/vacancies/')) {
+      const id = target.pathname.split('/')[2]
+      body = { id, employer: { id: '1702778' }, area: { name: id === '136453079' ? 'Челябинск' : 'Минск' } }
+    } else if (target.pathname === '/negotiations') body = { collections: [] }
+    else if (target.pathname === '/common/chats') body = { page: 0, pages: 1,
+      items: [{ id: '36', type: 'NEGOTIATION', unread_message_count: 1,
+        last_message: { id: '38', payload: { text: 'private message' } } }] }
+    else throw new Error('unexpected provider request')
+    return { ok: true, status: 200, json: async () => body }
+  }
+  const runtime = createHHRuntime({ HH_OAUTH_ENABLED: 'true', HH_WEBHOOK_ENABLED: 'false',
+    HH_CLIENT_ID: 'id', HH_CLIENT_SECRET: 'secret', HH_TOKEN_ENCRYPTION_KEY: keyValue,
+    HH_API_USER_AGENT: 'Academy/1.0 (owner@example.com)' }, { pool, store, fetch: fetchImpl })
+  runtime.state.schema = 'ready'
+  await runtime.runCycle()
+  assert.equal(runtime.state.sync, 'ready')
+  assert.equal(runtime.state.lastCounts.minsk_baseline_proven, true)
+  assert.equal(runtime.state.lastCounts.other_vacancies, 1)
+  assert.equal(runtime.state.lastCounts.unknown_vacancies, 0)
+  assert.deepEqual(runtime.state.chats, { status: 'ready', count: 1, pages: 1,
+    unread_chats: 1, messages_read: 0, sends: 0 })
+  assert.equal(calls.filter(x => x === '/common/chats').length, 1)
+  assert.equal(calls.some(x => x.includes('/messages')), false)
+  assert.equal(JSON.stringify(runtime.state).includes('private message'), false)
+})
+
 test('manager-authorized vacancy inventory classifies Chelyabinsk before negotiation reads', async () => {
   const saved = []
   const calls = []
@@ -103,6 +188,7 @@ test('manager-authorized vacancy inventory classifies Chelyabinsk before negotia
   const scope = await discoverVacancies({ api, token: 'opaque', store: { saveVacancy: async x => saved.push(x) } })
   assert.deepEqual(scope.included, ['136455388', '136453079'])
   assert.deepEqual(scope.classes, { CHELYABINSK_PROVEN: 1, OTHER: 2, UNKNOWN: 0 })
+  assert.equal(scope.minskBaselineProven, true)
   assert.equal(saved.find(x => x.vacancyId === '136453079').classification, 'CHELYABINSK_PROVEN')
   assert.equal(calls.some(x => x.startsWith('/negotiations')), false)
   assert.equal(vacancyCity({ area: { name: 'Челябинская область' } }), 'OTHER')

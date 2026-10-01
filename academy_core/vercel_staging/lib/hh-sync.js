@@ -64,12 +64,17 @@ async function discoverVacancies({ api, token, store, maxPages = 100, maxVacanci
   }
   const included = []
   const classes = { CHELYABINSK_PROVEN: 0, OTHER: 0, UNKNOWN: 0 }
+  let minskBaselineProven = false
   for (const vacancyId of ids) {
     const vacancy = await api.get(`/vacancies/${vacancyId}?host=hh.ru`, token, `/vacancies/${vacancyId}`)
     if (String(vacancy.id) !== vacancyId || String(vacancy.employer?.id || '') !== EXPECTED_EMPLOYER_UI_ID) {
       throw new Error('HH_VACANCY_EMPLOYER_MISMATCH')
     }
     const classification = vacancyCity(vacancy)
+    if (vacancyId === VACANCY_ID) {
+      minskBaselineProven = [vacancy.area?.name, ...(Array.isArray(vacancy.areas)
+        ? vacancy.areas.map(area => area?.name) : [])].includes('Минск')
+    }
     classes[classification]++
     await store.saveVacancy({ employerId: EXPECTED_EMPLOYER_UI_ID, vacancyId,
       name: String(vacancy.name || '').slice(0, 500), archived: Boolean(vacancy.archived),
@@ -84,7 +89,7 @@ async function discoverVacancies({ api, token, store, maxPages = 100, maxVacanci
   if (!ids.has(CHELYABINSK_ANCHOR_ID) || !included.includes(CHELYABINSK_ANCHOR_ID)) {
     throw new Error('HH_CHELYABINSK_ANCHOR_UNPROVEN')
   }
-  return { included, classified: ids.size, classes }
+  return { included, classified: ids.size, classes, minskBaselineProven }
 }
 
 async function syncVacancy({ api, token, store, vacancyId = VACANCY_ID, maxPages = 1000 }) {

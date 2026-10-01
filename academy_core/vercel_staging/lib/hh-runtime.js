@@ -4,6 +4,7 @@ const { Pool } = require('pg')
 const { databaseConfig } = require('./batman-runtime-config')
 const { hhStore } = require('./hh-store')
 const { hhApi } = require('./hh-api')
+const { inventoryChats } = require('./hh-chats')
 const { discoverVacancies, syncVacancy, managerContext, verifyContext } = require('./hh-sync')
 const { HH_REDIRECT_URI, HH_SESSION_TTL_MS, sha256, encryptionKey, seal, open,
   randomOpaque, challenge, signReceiver, fixedEqual } = require('./hh-security')
@@ -55,7 +56,7 @@ function createHHRuntime(env = process.env, deps = {}) {
   const store = deps.store || hhStore(pool)
   const fetchImpl = deps.fetch || fetch
   const state = { schema: 'pending', connection: 'unknown', sync: 'never', lastError: null,
-    lastSync: null, subscriptions: 'disabled' }
+    lastSync: null, subscriptions: 'disabled', chats: { status: 'not_run' } }
   let timer = null
   let running = false
 
@@ -124,6 +125,7 @@ function createHHRuntime(env = process.env, deps = {}) {
       }
       state.connection = current.status
       if (current.status !== 'active') return
+      state.chats = { status: 'not_run' }
       const key = encryptionKey(env)
       const api = hhApi(env, fetchImpl)
       const token = await tokenForCycle(api, key)
@@ -135,11 +137,22 @@ function createHHRuntime(env = process.env, deps = {}) {
       state.lastError = null
       state.lastCounts = { classified_vacancies: scope.classified,
         chelyabinsk_vacancies: scope.classes.CHELYABINSK_PROVEN,
+        other_vacancies: scope.classes.OTHER, unknown_vacancies: scope.classes.UNKNOWN,
+        minsk_baseline_proven: scope.minskBaselineProven,
         in_scope_vacancies: readbacks.length,
         collections: readbacks.reduce((n, x) => n + x.collections, 0),
         pages: readbacks.reduce((n, x) => n + x.pagesRead, 0),
         rawRows: readbacks.reduce((n, x) => n + x.rawRows, 0),
         inserted: readbacks.reduce((n, x) => n + x.inserted, 0) }
+      try {
+        const inventory = await inventoryChats({ api, token, vacancyIds: scope.included })
+        state.chats = { status: 'ready', count: inventory.chats.length, pages: inventory.pagesRead,
+          unread_chats: inventory.chats.filter(chat => chat.unreadCount > 0).length,
+          messages_read: 0, sends: 0 }
+      } catch (error) {
+        state.chats = { status: 'failed', error_code: error?.status === 403 ? 'HH_CHATS_FORBIDDEN'
+          : 'HH_CHATS_INVENTORY_FAILED', messages_read: 0, sends: 0 }
+      }
       await ensureSubscription(api, token, key)
     } catch (error) {
       const code = /^HH_[A-Z0-9_]+$/.test(error?.message || '') ? error.message : 'HH_CYCLE_FAILED'
@@ -282,7 +295,7 @@ function createHHRuntime(env = process.env, deps = {}) {
     if (url.pathname === '/integrations/hh/health' && request.method === 'GET') {
       return json(response, 200, { ok: true, enabled: enabled(), schema: state.schema,
         connection: state.connection, sync: state.sync, last_sync: state.lastSync,
-        last_error_code: state.lastError, counts: state.lastCounts || null })
+        last_error_code: state.lastError, counts: state.lastCounts || null, chats: state.chats })
     }
     if (url.pathname === '/integrations/hh/oauth/start' && request.method === 'GET') return oauthStart(request, response)
     if (url.pathname === '/integrations/hh/oauth/callback' && request.method === 'GET') return oauthCallback(request, response, url)
