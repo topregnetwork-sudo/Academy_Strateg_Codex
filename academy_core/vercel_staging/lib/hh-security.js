@@ -17,6 +17,7 @@ function fixedEqual(a, b) {
 
 function encryptionKey(env) {
   const raw = String(env.HH_TOKEN_ENCRYPTION_KEY || '')
+  if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex')
   if (!/^[A-Za-z0-9_-]{43}$/.test(raw) && !/^[A-Za-z0-9+/]{43}=$/.test(raw)) throw new Error('HH_KEY_INVALID')
   const key = Buffer.from(raw, raw.includes('-') || raw.includes('_') ? 'base64url' : 'base64')
   if (key.length !== 32) throw new Error('HH_KEY_INVALID')

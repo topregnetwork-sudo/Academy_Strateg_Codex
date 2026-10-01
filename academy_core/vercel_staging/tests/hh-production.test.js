@@ -20,6 +20,17 @@ test('token/verifier boxes authenticate ciphertext and never contain plaintext',
   assert.throws(() => open({ ...box, t: randomBytes(16).toString('base64url') }, key))
 })
 
+test('encryption key accepts only complete 32-byte hex or base64 representations', () => {
+  const bytes = randomBytes(32)
+  assert.deepEqual(encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: bytes.toString('hex') }), bytes)
+  assert.deepEqual(encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: bytes.toString('base64url') }), bytes)
+  assert.deepEqual(encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: bytes.toString('base64') }), bytes)
+  for (const invalid of ['', 'a'.repeat(63), 'g'.repeat(64), randomBytes(16).toString('hex'),
+    randomBytes(31).toString('base64url'), randomBytes(33).toString('base64url')]) {
+    assert.throws(() => encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: invalid }), /HH_KEY_INVALID/)
+  }
+})
+
 test('state/PKCE entropy and HH URL allowlist', () => {
   const verifier = randomOpaque()
   assert.equal(verifier.length, 43)

@@ -12,7 +12,8 @@ chat, deployment logs, screenshots, or documentation:
 
 - `HH_CLIENT_ID` and `HH_CLIENT_SECRET`: existing application #29768. Transfer
   directly from the HH protected view into Timeweb's protected editor.
-- `HH_TOKEN_ENCRYPTION_KEY`: a unique 32-byte base64url encryption key. Keep a
+- `HH_TOKEN_ENCRYPTION_KEY`: a unique 32-byte encryption key encoded as
+  43-character base64url, padded base64, or exactly 64 hex characters. Keep a
   recoverable copy in the owner's approved secret manager. Losing it requires
   fresh manager authorization. Never rotate it while old tokens are stored
   without a migration plan.
