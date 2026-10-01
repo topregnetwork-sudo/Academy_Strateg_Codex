@@ -1,6 +1,7 @@
 const { sha256, safeApiUrl } = require('./hh-security')
 
 const VACANCY_ID = '136455388'
+const CHELYABINSK_ANCHOR_ID = '136453079'
 const EXPECTED_MANAGER_NAME = 'Шипунов Максим Александрович'
 const EXPECTED_EMPLOYER_UI_ID = '1702778'
 
@@ -30,18 +31,77 @@ function metadataOnly(item) {
   }
 }
 
-async function syncVacancy({ api, token, store, maxPages = 1000 }) {
-  const vacancy = await api.get(`/vacancies/${VACANCY_ID}?host=hh.ru`, token, `/vacancies/${VACANCY_ID}`)
-  if (String(vacancy.id) !== VACANCY_ID || String(vacancy.employer?.id || '') !== EXPECTED_EMPLOYER_UI_ID) {
+function vacancyCity(vacancy) {
+  const names = [vacancy.area?.name, ...(Array.isArray(vacancy.areas) ? vacancy.areas.map(x => x?.name) : [])]
+  if (names.includes('Челябинск')) return 'CHELYABINSK_PROVEN'
+  if (names.some(Boolean)) return 'OTHER'
+  return 'UNKNOWN'
+}
+
+async function discoverVacancies({ api, token, store, maxPages = 100, maxVacancies = 500 }) {
+  const ids = new Set([VACANCY_ID, CHELYABINSK_ANCHOR_ID])
+  for (const status of ['active', 'archived', 'hidden']) {
+    const prefix = `/employers/${EXPECTED_EMPLOYER_UI_ID}/vacancies/${status}`
+    let pages = 1
+    for (let page = 0; page < pages; page++) {
+      if (page >= maxPages) throw new Error('HH_VACANCY_PAGE_BOUND_EXCEEDED')
+      let result
+      try { result = await api.get(`${prefix}?page=${page}&per_page=50&host=hh.ru`, token, prefix) }
+      catch (error) {
+        if (status === 'hidden' && page === 0 && [403, 404].includes(error.status)) break
+        throw error
+      }
+      if (!Array.isArray(result.items) || result.page !== page || !Number.isInteger(result.pages) ||
+          result.pages < 1 || result.pages > maxPages) throw new Error('HH_VACANCY_PAGE_INVALID')
+      pages = result.pages
+      for (const item of result.items) {
+        const id = String(item.id || '')
+        if (!/^\d+$/.test(id)) throw new Error('HH_VACANCY_ID_INVALID')
+        ids.add(id)
+        if (ids.size > maxVacancies) throw new Error('HH_VACANCY_BOUND_EXCEEDED')
+      }
+    }
+  }
+  const included = []
+  const classes = { CHELYABINSK_PROVEN: 0, OTHER: 0, UNKNOWN: 0 }
+  for (const vacancyId of ids) {
+    const vacancy = await api.get(`/vacancies/${vacancyId}?host=hh.ru`, token, `/vacancies/${vacancyId}`)
+    if (String(vacancy.id) !== vacancyId || String(vacancy.employer?.id || '') !== EXPECTED_EMPLOYER_UI_ID) {
+      throw new Error('HH_VACANCY_EMPLOYER_MISMATCH')
+    }
+    const classification = vacancyCity(vacancy)
+    classes[classification]++
+    await store.saveVacancy({ employerId: EXPECTED_EMPLOYER_UI_ID, vacancyId,
+      name: String(vacancy.name || '').slice(0, 500), archived: Boolean(vacancy.archived),
+      publishedAt: vacancy.published_at || null, classification,
+      areaId: vacancy.area?.id ? String(vacancy.area.id) : null,
+      areaName: vacancy.area?.name ? String(vacancy.area.name).slice(0, 200) : null,
+      snapshotHash: sha256(JSON.stringify({ id: vacancy.id, employer: vacancy.employer?.id,
+        area: vacancy.area?.id, areas: vacancy.areas?.map(x => x?.id),
+        archived: vacancy.archived, published_at: vacancy.published_at })) })
+    if (vacancyId === VACANCY_ID || classification === 'CHELYABINSK_PROVEN') included.push(vacancyId)
+  }
+  if (!ids.has(CHELYABINSK_ANCHOR_ID) || !included.includes(CHELYABINSK_ANCHOR_ID)) {
+    throw new Error('HH_CHELYABINSK_ANCHOR_UNPROVEN')
+  }
+  return { included, classified: ids.size, classes }
+}
+
+async function syncVacancy({ api, token, store, vacancyId = VACANCY_ID, maxPages = 1000 }) {
+  if (!/^\d+$/.test(vacancyId)) throw new Error('HH_VACANCY_ID_INVALID')
+  const vacancy = await api.get(`/vacancies/${vacancyId}?host=hh.ru`, token, `/vacancies/${vacancyId}`)
+  if (String(vacancy.id) !== vacancyId || String(vacancy.employer?.id || '') !== EXPECTED_EMPLOYER_UI_ID) {
     throw new Error('HH_VACANCY_EMPLOYER_MISMATCH')
   }
-  await store.saveVacancy({ employerId: EXPECTED_EMPLOYER_UI_ID, vacancyId: VACANCY_ID,
+  await store.saveVacancy({ employerId: EXPECTED_EMPLOYER_UI_ID, vacancyId,
     name: String(vacancy.name || '').slice(0, 500), archived: Boolean(vacancy.archived),
-    publishedAt: vacancy.published_at || null,
+    publishedAt: vacancy.published_at || null, classification: vacancyCity(vacancy),
+    areaId: vacancy.area?.id ? String(vacancy.area.id) : null,
+    areaName: vacancy.area?.name ? String(vacancy.area.name).slice(0, 200) : null,
     snapshotHash: sha256(JSON.stringify({ id: vacancy.id, employer: vacancy.employer?.id,
       archived: vacancy.archived, published_at: vacancy.published_at })) })
 
-  const discoveryUrl = `/negotiations?vacancy_id=${VACANCY_ID}&host=hh.ru`
+  const discoveryUrl = `/negotiations?vacancy_id=${vacancyId}&host=hh.ru`
   const discovery = await api.get(discoveryUrl, token, '/negotiations')
   if (!Array.isArray(discovery.collections)) throw new Error('HH_COLLECTIONS_INVALID')
   const collectionHash = sha256(JSON.stringify(discovery.collections.map(x => [x.id, x.url, x.counters?.total])))
@@ -52,7 +112,7 @@ async function syncVacancy({ api, token, store, maxPages = 1000 }) {
     const collectionId = String(collection.id || '')
     if (!collectionId || !collection.url) throw new Error('HH_COLLECTION_INVALID')
     const base = safeApiUrl(collection.url, '/negotiations/')
-    if (base.searchParams.get('vacancy_id') !== VACANCY_ID) throw new Error('HH_COLLECTION_VACANCY_MISMATCH')
+    if (base.searchParams.get('vacancy_id') !== vacancyId) throw new Error('HH_COLLECTION_VACANCY_MISMATCH')
     let pages = 1
     for (let page = 0; page < pages; page++) {
       if (pagesRead >= maxPages) throw new Error('HH_PAGE_BOUND_EXCEEDED')
@@ -83,7 +143,7 @@ async function syncVacancy({ api, token, store, maxPages = 1000 }) {
         }
         items.push(item)
       }
-      const saved = await store.savePage({ employerId: EXPECTED_EMPLOYER_UI_ID, vacancyId: VACANCY_ID,
+      const saved = await store.savePage({ employerId: EXPECTED_EMPLOYER_UI_ID, vacancyId,
         collectionId, page, collectionHash,
         pageHash: sha256(JSON.stringify(items)), found: result.found, pages: result.pages, items })
       pagesRead++
@@ -95,9 +155,9 @@ async function syncVacancy({ api, token, store, maxPages = 1000 }) {
   const afterHash = sha256(JSON.stringify(after.collections?.map(x => [x.id, x.url, x.counters?.total])))
   if (afterHash !== collectionHash) throw new Error('HH_COLLECTION_SNAPSHOT_CHANGED')
   await store.markSync()
-  return { vacancyId: VACANCY_ID, collections: discovery.collections.length, pagesRead, rawRows, inserted,
+  return { vacancyId, collections: discovery.collections.length, pagesRead, rawRows, inserted,
     snapshotStable: true, messagesRead: 0, writes: 0 }
 }
 
-module.exports = { VACANCY_ID, EXPECTED_MANAGER_NAME, EXPECTED_EMPLOYER_UI_ID,
-  managerContext, verifyContext, metadataOnly, syncVacancy }
+module.exports = { VACANCY_ID, CHELYABINSK_ANCHOR_ID, EXPECTED_MANAGER_NAME, EXPECTED_EMPLOYER_UI_ID,
+  managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy }

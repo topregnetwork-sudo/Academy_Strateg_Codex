@@ -54,12 +54,23 @@ function hhStore(pool) {
       updated_at=now() where id='hh-ru-employer' and status='active'`, [subscriptionId, receiverHash])
   }
 
-  async function saveVacancy({ employerId, vacancyId, name, archived, publishedAt, snapshotHash }) {
-    await pool.query(`insert into hh_vacancies(host,employer_id,vacancy_id,name,archived,published_at,snapshot_hash)
-      values('hh.ru',$1,$2,$3,$4,$5,$6) on conflict(host,employer_id,vacancy_id)
+  async function saveVacancy({ employerId, vacancyId, name, archived, publishedAt, snapshotHash,
+    classification = 'UNKNOWN', areaId = null, areaName = null }) {
+    await pool.query(`insert into hh_vacancies(host,employer_id,vacancy_id,name,archived,published_at,
+      snapshot_hash,city_classification,area_id,area_name)
+      values('hh.ru',$1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict(host,employer_id,vacancy_id)
       do update set name=excluded.name,archived=excluded.archived,published_at=excluded.published_at,
-        snapshot_hash=excluded.snapshot_hash,last_seen_at=now()`,
-    [employerId, vacancyId, name, archived, publishedAt, snapshotHash])
+        snapshot_hash=excluded.snapshot_hash,city_classification=excluded.city_classification,
+        area_id=excluded.area_id,area_name=excluded.area_name,last_seen_at=now()`,
+    [employerId, vacancyId, name, archived, publishedAt, snapshotHash, classification, areaId, areaName])
+  }
+
+  async function inScopeVacancy(vacancyId) {
+    if (!/^\d+$/.test(vacancyId)) return false
+    const { rows } = await pool.query(`select 1 from hh_vacancies where host='hh.ru'
+      and employer_id='1702778' and vacancy_id=$1
+      and (vacancy_id='136455388' or city_classification='CHELYABINSK_PROVEN') limit 1`, [vacancyId])
+    return rows.length === 1
   }
 
   async function savePage({ employerId, vacancyId, collectionId, page, collectionHash, pageHash, found, pages, items }) {
@@ -159,7 +170,7 @@ function hhStore(pool) {
   }
 
   return { consumeSession, saveToken, verifyManager, connection, updateTokens, recoveryRequired, saveSubscription,
-    saveVacancy, savePage, webhookEvent, status, markSync, markError }
+    saveVacancy, inScopeVacancy, savePage, webhookEvent, status, markSync, markError }
 }
 
 module.exports = { hhStore }

@@ -4,7 +4,7 @@ const { Pool } = require('pg')
 const { databaseConfig } = require('./batman-runtime-config')
 const { hhStore } = require('./hh-store')
 const { hhApi } = require('./hh-api')
-const { syncVacancy, managerContext, verifyContext } = require('./hh-sync')
+const { discoverVacancies, syncVacancy, managerContext, verifyContext } = require('./hh-sync')
 const { HH_REDIRECT_URI, HH_SESSION_TTL_MS, sha256, encryptionKey, seal, open,
   randomOpaque, challenge, signReceiver, fixedEqual } = require('./hh-security')
 
@@ -49,8 +49,10 @@ function createHHRuntime(env = process.env, deps = {}) {
 
   async function migrate() {
     if (env.HH_SCHEMA_MIGRATE_ON_START !== 'true') { state.schema = 'not_requested'; return }
-    const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '0011_hh_employer_inbound.sql'), 'utf8')
-    await pool.query(sql)
+    for (const filename of ['0011_hh_employer_inbound.sql', '0012_hh_vacancy_scope.sql']) {
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', filename), 'utf8')
+      await pool.query(sql)
+    }
     state.schema = 'ready'
   }
 
@@ -110,12 +112,19 @@ function createHHRuntime(env = process.env, deps = {}) {
       const key = encryptionKey(env)
       const api = hhApi(env, fetchImpl)
       const token = await tokenForCycle(api, key)
-      const readback = await syncVacancy({ api, token, store })
+      const scope = await discoverVacancies({ api, token, store })
+      const readbacks = []
+      for (const vacancyId of scope.included) readbacks.push(await syncVacancy({ api, token, store, vacancyId }))
       state.sync = 'ready'
       state.lastSync = new Date().toISOString()
       state.lastError = null
-      state.lastCounts = { collections: readback.collections, pages: readback.pagesRead,
-        rawRows: readback.rawRows, inserted: readback.inserted }
+      state.lastCounts = { classified_vacancies: scope.classified,
+        chelyabinsk_vacancies: scope.classes.CHELYABINSK_PROVEN,
+        in_scope_vacancies: readbacks.length,
+        collections: readbacks.reduce((n, x) => n + x.collections, 0),
+        pages: readbacks.reduce((n, x) => n + x.pagesRead, 0),
+        rawRows: readbacks.reduce((n, x) => n + x.rawRows, 0),
+        inserted: readbacks.reduce((n, x) => n + x.inserted, 0) }
       await ensureSubscription(api, token, key)
     } catch (error) {
       const code = /^HH_[A-Z0-9_]+$/.test(error?.message || '') ? error.message : 'HH_CYCLE_FAILED'
@@ -212,7 +221,7 @@ function createHHRuntime(env = process.env, deps = {}) {
           suppliedSubscriptionId !== connection.webhook_subscription_id ||
           String(body.user_id || '') !== String(connection.manager_id || '') ||
           String(payload.employer_id || '') !== '1702778' ||
-          String(payload.vacancy_id || '') !== '136455388') {
+          !await store.inScopeVacancy(String(payload.vacancy_id || ''))) {
         return json(response, 400, { ok: false })
       }
       const subscriptionId = connection.webhook_subscription_id

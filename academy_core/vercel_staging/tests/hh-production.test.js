@@ -6,7 +6,7 @@ const { randomBytes } = require('node:crypto')
 const http = require('node:http')
 const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl, signReceiver } = require('../lib/hh-security')
 const { hhApi } = require('../lib/hh-api')
-const { managerContext, verifyContext, metadataOnly, syncVacancy } = require('../lib/hh-sync')
+const { managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
 const { createHHRuntime } = require('../lib/hh-runtime')
 
@@ -64,6 +64,38 @@ test('metadata projection excludes raw resume, contact, actions and messages', (
   assert.equal(JSON.stringify(value).includes('PII'), false)
   assert.equal(JSON.stringify(value).includes('secret text'), false)
   assert.equal(JSON.stringify(value).includes('PUT'), false)
+})
+
+test('manager-authorized vacancy inventory classifies Chelyabinsk before negotiation reads', async () => {
+  const saved = []
+  const calls = []
+  const api = { get: async url => {
+    const value = String(url)
+    calls.push(value)
+    if (value.startsWith('/employers/')) {
+      const status = value.split('/')[4].split('?')[0]
+      return { page: 0, pages: 1, items: status === 'active' ? [{ id: '136453079' }, { id: '900' }] : [] }
+    }
+    const id = value.match(/^\/vacancies\/(\d+)/)?.[1]
+    if (id) return { id, employer: { id: '1702778' },
+      area: { id: id === '136455388' ? '1002' : id === '136453079' ? '104' : '1',
+        name: id === '136455388' ? 'Минск' : id === '136453079' ? 'Челябинск' : 'Москва' } }
+    throw new Error(`unexpected ${value}`)
+  } }
+  const scope = await discoverVacancies({ api, token: 'opaque', store: { saveVacancy: async x => saved.push(x) } })
+  assert.deepEqual(scope.included, ['136455388', '136453079'])
+  assert.deepEqual(scope.classes, { CHELYABINSK_PROVEN: 1, OTHER: 2, UNKNOWN: 0 })
+  assert.equal(saved.find(x => x.vacancyId === '136453079').classification, 'CHELYABINSK_PROVEN')
+  assert.equal(calls.some(x => x.startsWith('/negotiations')), false)
+  assert.equal(vacancyCity({ area: { name: 'Челябинская область' } }), 'OTHER')
+})
+
+test('Chelyabinsk anchor without provider city proof fails closed', async () => {
+  const api = { get: async url => String(url).startsWith('/employers/')
+    ? { page: 0, pages: 1, items: [] }
+    : { id: String(url).match(/^\/vacancies\/(\d+)/)[1], employer: { id: '1702778' } } }
+  await assert.rejects(discoverVacancies({ api, token: 'opaque', store: { saveVacancy: async () => {} } }),
+    /HH_CHELYABINSK_ANCHOR_UNPROVEN/)
 })
 
 test('full collection pagination and repeated snapshot create zero new rows through checkpoint replay', async () => {
@@ -184,6 +216,7 @@ test('official HH callback shape is scoped and duplicate delivery is idempotent'
   const events = new Set()
   const store = {
     connection: async () => ({ manager_id: '42', webhook_subscription_id: 'sub-1' }),
+    inScopeVacancy: async vacancyId => vacancyId === '136455388' || vacancyId === '136453079',
     webhookEvent: async ({ callbackId, vacancyId, negotiationId }) => {
       assert.equal(vacancyId, '136455388')
       assert.equal(negotiationId, null)
