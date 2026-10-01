@@ -52,6 +52,64 @@ function hhStore(pool) {
     return counts
   }
 
+  async function findNegotiationsByResume(vacancyId, resumeId) {
+    if (!/^\d+$/.test(String(vacancyId)) || !resumeId || String(resumeId).length > 200) {
+      throw new Error('HH_CHAT_LINK_LOOKUP_INVALID')
+    }
+    const { rows } = await pool.query(`select negotiation_id, person_id, identity_status,
+      applicant_state, employer_state from hh_negotiations
+      where host='hh.ru' and employer_id='1702778' and vacancy_id=$1 and resume_id=$2
+      order by negotiation_id limit 2`, [vacancyId, resumeId])
+    return rows
+  }
+
+  async function saveChatLinkRun(run) {
+    const client = await pool.connect()
+    try {
+      await client.query('begin')
+      await client.query(`insert into hh_chat_link_runs(run_id,snapshot_hash,observed_at,counts)
+        values($1,$2,$3,$4::jsonb)`, [run.runId, run.snapshotHash, run.observedAt,
+        JSON.stringify(run.counts)])
+      for (const row of run.rows) {
+        await client.query(`insert into hh_chat_links
+          (chat_alias,chat_id_box,vacancy_id,vacancy_bucket,resume_key,negotiation_id,
+           link_status,identity_linked,hh_state_known,unread_count,last_message_marker,
+           participant_viewed_markers,run_id,observed_at)
+          values($1,$2::jsonb,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14)
+          on conflict(chat_alias) do update set chat_id_box=excluded.chat_id_box,
+            vacancy_id=excluded.vacancy_id,vacancy_bucket=excluded.vacancy_bucket,
+            resume_key=excluded.resume_key,negotiation_id=excluded.negotiation_id,
+            link_status=excluded.link_status,identity_linked=excluded.identity_linked,
+            hh_state_known=excluded.hh_state_known,unread_count=excluded.unread_count,
+            last_message_marker=excluded.last_message_marker,
+            participant_viewed_markers=excluded.participant_viewed_markers,
+            run_id=excluded.run_id,observed_at=excluded.observed_at`,
+        [row.chatAlias, JSON.stringify(row.chatIdBox), row.vacancyId, row.vacancyBucket,
+          row.resumeKey, row.negotiationId, row.linkStatus, row.identityLinked,
+          row.hhStateKnown, row.unreadCount, row.lastMessageMarker,
+          JSON.stringify(row.participantViewedMarkers), run.runId, run.observedAt])
+      }
+      await client.query('commit')
+    } catch (error) {
+      await client.query('rollback')
+      throw error
+    } finally { client.release() }
+  }
+
+  async function chatLinkReadback({ bucket = 'CHELYABINSK_PROVEN', page = 0 } = {}) {
+    if (!['CHELYABINSK_PROVEN', 'OTHER', 'UNKNOWN'].includes(bucket) ||
+        !Number.isSafeInteger(page) || page < 0 || page > 1000) throw new Error('HH_CHAT_LINK_READBACK_SCOPE_INVALID')
+    const current = await pool.query(`select run_id,snapshot_hash,observed_at,counts
+      from hh_chat_link_runs order by created_at desc,run_id desc limit 1`)
+    const run = current.rows[0]
+    if (!run) return null
+    const links = await pool.query(`select chat_alias,vacancy_bucket,unread_count,
+      last_message_marker,participant_viewed_markers,link_status,identity_linked
+      from hh_chat_links where run_id=$1 and vacancy_bucket=$2
+      order by chat_alias limit 20 offset $3`, [run.run_id, bucket, page * 20])
+    return { run, rows: links.rows }
+  }
+
   async function updateTokens({ accessBox, refreshBox, expiresAt, expectedVersion }) {
     const result = await pool.query(`update hh_connections set access_box=$1,refresh_box=$2,expires_at=$3,
       token_version=token_version+1,updated_at=now() where id='hh-ru-employer' and token_version=$4
@@ -184,7 +242,8 @@ function hhStore(pool) {
   }
 
   return { consumeSession, saveToken, verifyManager, connection, auditCounts, updateTokens, recoveryRequired, saveSubscription,
-    saveVacancy, inScopeVacancy, savePage, webhookEvent, status, markSync, markError }
+    saveVacancy, inScopeVacancy, savePage, webhookEvent, status, markSync, markError,
+    findNegotiationsByResume, saveChatLinkRun, chatLinkReadback }
 }
 
 module.exports = { hhStore }

@@ -4,7 +4,7 @@ const { Pool } = require('pg')
 const { databaseConfig } = require('./batman-runtime-config')
 const { hhStore } = require('./hh-store')
 const { hhApi } = require('./hh-api')
-const { inventoryChats } = require('./hh-chats')
+const { buildChatLinkRun, operatorProjection } = require('./hh-chat-link')
 const { discoverVacancies, syncVacancy, managerContext, verifyContext } = require('./hh-sync')
 const { HH_REDIRECT_URI, HH_SESSION_TTL_MS, sha256, encryptionKey, seal, open,
   randomOpaque, challenge, signReceiver, fixedEqual } = require('./hh-security')
@@ -56,7 +56,8 @@ function createHHRuntime(env = process.env, deps = {}) {
   const store = deps.store || hhStore(pool)
   const fetchImpl = deps.fetch || fetch
   const state = { schema: 'pending', connection: 'unknown', sync: 'never', lastError: null,
-    lastSync: null, subscriptions: 'disabled', chats: { status: 'not_run' } }
+    lastSync: null, subscriptions: 'disabled', chats: { status: 'not_run' },
+    chatLinks: { status: 'not_run' } }
   let timer = null
   let running = false
 
@@ -65,7 +66,8 @@ function createHHRuntime(env = process.env, deps = {}) {
 
   async function migrate() {
     if (env.HH_SCHEMA_MIGRATE_ON_START !== 'true') { state.schema = 'not_requested'; return }
-    for (const filename of ['0011_hh_employer_inbound.sql', '0012_hh_vacancy_scope.sql']) {
+    for (const filename of ['0011_hh_employer_inbound.sql', '0012_hh_vacancy_scope.sql',
+      '0013_hh_chat_links.sql']) {
       const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', filename), 'utf8')
       await pool.query(sql)
     }
@@ -126,6 +128,7 @@ function createHHRuntime(env = process.env, deps = {}) {
       state.connection = current.status
       if (current.status !== 'active') return
       state.chats = { status: 'not_run' }
+      state.chatLinks = { status: 'not_run' }
       const key = encryptionKey(env)
       const api = hhApi(env, fetchImpl)
       const token = await tokenForCycle(api, key)
@@ -151,13 +154,19 @@ function createHHRuntime(env = process.env, deps = {}) {
         events: afterCounts.events - beforeCounts.events,
         outbox: afterCounts.outbox - beforeCounts.outbox }
       try {
-        const inventory = await inventoryChats({ api, token, vacancyIds: scope.included })
-        state.chats = { status: 'ready', count: inventory.chats.length, pages: inventory.pagesRead,
-          unread_chats: inventory.chats.filter(chat => chat.unreadCount > 0).length,
+        const run = await buildChatLinkRun({ api, token, store, key })
+        await store.saveChatLinkRun(run)
+        state.chats = { status: 'ready', count: run.counts.total_chats, pages: run.pagesRead,
+          unread_chats: run.rows.filter(chat => chat.unreadCount > 0).length,
           messages_read: 0, sends: 0 }
+        state.chatLinks = { status: run.counts.participants_not_scanned > 0 ? 'partial' : 'ready',
+          run_id: run.runId,
+          snapshot_hash: run.snapshotHash, observed_at: run.observedAt, counts: run.counts }
       } catch (error) {
         state.chats = { status: 'failed', error_code: error?.status === 403 ? 'HH_CHATS_FORBIDDEN'
           : 'HH_CHATS_INVENTORY_FAILED', messages_read: 0, sends: 0 }
+        state.chatLinks = { status: 'failed', error_code: error?.status === 403
+          ? 'HH_CHAT_LINK_FORBIDDEN' : 'HH_CHAT_LINK_FAILED' }
       }
       await ensureSubscription(api, token, key)
     } catch (error) {
@@ -301,7 +310,26 @@ function createHHRuntime(env = process.env, deps = {}) {
     if (url.pathname === '/integrations/hh/health' && request.method === 'GET') {
       return json(response, 200, { ok: true, enabled: enabled(), schema: state.schema,
         connection: state.connection, sync: state.sync, last_sync: state.lastSync,
-        last_error_code: state.lastError, counts: state.lastCounts || null, chats: state.chats })
+        last_error_code: state.lastError, counts: state.lastCounts || null, chats: state.chats,
+        chat_links: state.chatLinks })
+    }
+    if (url.pathname === '/integrations/hh/chats/owner-readback' && request.method === 'GET') {
+      const expected = String(env.HH_CHAT_READBACK_TOKEN || '')
+      if (expected.length < 32) return json(response, 404, { ok: false })
+      const given = String(request.headers.authorization || '')
+      if (!given.startsWith('Bearer ') || !fixedEqual(given.slice(7), expected)) {
+        return json(response, 401, { ok: false })
+      }
+      try {
+        const bucket = url.searchParams.get('bucket') || 'CHELYABINSK_PROVEN'
+        const page = Number(url.searchParams.get('page') || '0')
+        const result = await store.chatLinkReadback({ bucket, page })
+        if (!result) return json(response, 404, { ok: false })
+        return json(response, 200, { ok: true, run_id: result.run.run_id,
+          snapshot_hash: result.run.snapshot_hash, observed_at: result.run.observed_at,
+          counts: result.run.counts, bucket, page,
+          chats: result.rows.map(operatorProjection) })
+      } catch (_) { return json(response, 400, { ok: false }) }
     }
     if (url.pathname === '/integrations/hh/oauth/start' && request.method === 'GET') return oauthStart(request, response)
     if (url.pathname === '/integrations/hh/oauth/callback' && request.method === 'GET') return oauthCallback(request, response, url)

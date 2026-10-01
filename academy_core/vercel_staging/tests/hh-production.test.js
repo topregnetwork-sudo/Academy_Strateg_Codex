@@ -8,6 +8,7 @@ const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl, signRece
 const { hhApi } = require('../lib/hh-api')
 const { hhStore } = require('../lib/hh-store')
 const { inventoryChats, probeNoViewed } = require('../lib/hh-chats')
+const { buildChatLinkRun, operatorProjection } = require('../lib/hh-chat-link')
 const { managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
 const { createHHRuntime, startErrorCode, callbackErrorCode } = require('../lib/hh-runtime')
@@ -132,13 +133,14 @@ test('stable one-chat probe returns only counts from the official messages shape
   assert.equal(JSON.stringify(result).includes('private'), false)
 })
 
-test('runtime chat inventory is read-only and reports aggregate counts without content', async () => {
+test('runtime chat linkage is read-only and reports aggregate counts without content', async () => {
   const calls = []
   const key = encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: keyValue })
   const pool = { connect: async () => ({ query: async () => ({ rows: [{ acquired: true }] }), release: () => {} }) }
   const store = { connection: async () => ({ status: 'active', expires_at: new Date(Date.now() + 3600000),
     access_box: seal('opaque-access-token', key), refresh_box: seal('opaque-refresh-token', key) }),
   saveVacancy: async () => {}, markSync: async () => {},
+  findNegotiationsByResume: async () => [], saveChatLinkRun: async run => { assert.equal(run.rows.length, 1) },
   auditCounts: async () => ({ negotiations: 555, events: 555, outbox: 555 }) }
   const fetchImpl = async url => {
     const target = new URL(String(url))
@@ -150,8 +152,11 @@ test('runtime chat inventory is read-only and reports aggregate counts without c
       body = { id, employer: { id: '1702778' }, area: { name: id === '136453079' ? 'Челябинск' : 'Минск' } }
     } else if (target.pathname === '/negotiations') body = { collections: [] }
     else if (target.pathname === '/common/chats') body = { page: 0, pages: 1,
-      items: [{ id: '36', type: 'NEGOTIATION', unread_message_count: 1,
-        last_message: { id: '38', payload: { text: 'private message' } } }] }
+      items: target.searchParams.get('filter_with_vacancy_ids') === '[136453079]'
+        ? [{ id: '36', type: 'NEGOTIATION', unread_message_count: 1,
+          last_message: { id: '38', payload: { text: 'private message' } } }] : [] }
+    else if (target.pathname === '/common/chats/36/participants') body = { items: [
+      { id: '2', role: 'APPLICANT', resume_id: 'private-resume', last_viewed_message_id: '30' }] }
     else throw new Error('unexpected provider request')
     return { ok: true, status: 200, json: async () => body }
   }
@@ -165,11 +170,126 @@ test('runtime chat inventory is read-only and reports aggregate counts without c
   assert.equal(runtime.state.lastCounts.other_vacancies, 1)
   assert.equal(runtime.state.lastCounts.unknown_vacancies, 0)
   assert.deepEqual(runtime.state.lastCounts.db_delta, { negotiations: 0, events: 0, outbox: 0 })
-  assert.deepEqual(runtime.state.chats, { status: 'ready', count: 1, pages: 1,
+  assert.deepEqual(runtime.state.chats, { status: 'ready', count: 1, pages: 2,
     unread_chats: 1, messages_read: 0, sends: 0 })
-  assert.equal(calls.filter(x => x === '/common/chats').length, 1)
+  assert.equal(runtime.state.chatLinks.counts.unknown_identity, 1)
+  assert.equal(runtime.state.chatLinks.counts.eligible_for_review, null)
+  assert.equal(calls.filter(x => x === '/common/chats').length, 2)
+  assert.equal(calls.filter(x => x === '/common/chats/36/participants').length, 1)
   assert.equal(calls.some(x => x.includes('/messages')), false)
   assert.equal(JSON.stringify(runtime.state).includes('private message'), false)
+})
+
+test('chat linkage requires one scoped applicant resume and one negotiation', async () => {
+  const key = encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: keyValue })
+  const calls = []
+  const api = { get: async url => {
+    const path = String(url)
+    calls.push(path)
+    if (path.startsWith('/common/chats?')) return { page: 0, pages: 1,
+      items: path.includes('%5B136453079%5D')
+        ? [{ id: 'private-chat-id', type: 'NEGOTIATION', unread_message_count: 2,
+          last_message: { id: 'private-message-id', payload: { text: 'do not retain' } } }] : [] }
+    if (path.includes('/participants?')) return { items: [
+      { id: 'private-participant', role: 'APPLICANT', resume_id: 'private-resume-id',
+        last_viewed_message_id: 'private-viewed-id' }] }
+    throw new Error('unexpected provider request')
+  } }
+  const run = await buildChatLinkRun({ api, token: 'opaque', key,
+    store: { findNegotiationsByResume: async (vacancyId, resumeId) => {
+      assert.equal(vacancyId, '136453079')
+      assert.equal(resumeId, 'private-resume-id')
+      return [{ negotiation_id: 'private-negotiation-id', person_id: null,
+        identity_status: 'unlinked', applicant_state: 'response', employer_state: null }]
+    } }, makeRunId: () => '00000000-0000-4000-8000-000000000001' })
+  assert.equal(run.counts.chelyabinsk_chats, 1)
+  assert.equal(run.counts.provider_linked, 1)
+  assert.equal(run.counts.identity_linked, 0)
+  assert.equal(run.counts.unknown_identity, 1)
+  assert.equal(run.counts.eligible_for_review, null)
+  assert.equal(open(run.rows[0].chatIdBox, key), 'private-chat-id')
+  const projection = operatorProjection({ chat_alias: run.rows[0].chatAlias,
+    vacancy_bucket: run.rows[0].vacancyBucket, unread_count: run.rows[0].unreadCount,
+    last_message_marker: run.rows[0].lastMessageMarker,
+    participant_viewed_markers: run.rows[0].participantViewedMarkers,
+    link_status: run.rows[0].linkStatus, identity_linked: run.rows[0].identityLinked })
+  for (const privateValue of ['private-chat-id', 'private-resume-id', 'private-negotiation-id',
+    'private-participant', 'private-message-id', 'private-viewed-id', 'do not retain']) {
+    assert.equal(JSON.stringify(projection).includes(privateValue), false)
+  }
+  assert.equal(calls.some(path => path.includes('/messages')), false)
+})
+
+test('participant scan is bounded, prioritizes unread, and leaves unscanned identity unknown', async () => {
+  const key = encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: keyValue })
+  const participantCalls = []
+  const api = { get: async url => {
+    const path = String(url)
+    if (path.startsWith('/common/chats?')) return { page: 0, pages: 1,
+      items: path.includes('%5B136453079%5D') ? [
+        { id: 'read-chat', unread_message_count: 0 },
+        { id: 'unread-chat', unread_message_count: 1 },
+      ] : [] }
+    if (path.includes('/participants?')) {
+      participantCalls.push(path)
+      return { items: [{ id: 'participant', role: 'APPLICANT', resume_id: 'resume' }] }
+    }
+    throw new Error('unexpected provider request')
+  } }
+  const run = await buildChatLinkRun({ api, token: 'opaque', key,
+    store: { findNegotiationsByResume: async () => [] }, maxParticipantReads: 1 })
+  assert.equal(participantCalls.length, 1)
+  assert.equal(participantCalls[0].includes('unread-chat'), true)
+  assert.equal(run.counts.participants_scanned, 1)
+  assert.equal(run.counts.participants_not_scanned, 1)
+  assert.equal(run.counts.unknown_identity, 2)
+  assert.equal(run.rows.find(row => row.unreadCount === 0).linkStatus, 'PARTICIPANTS_NOT_SCANNED')
+})
+
+test('two negotiations for one resume never become an automatic chat identity', async () => {
+  const key = encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: keyValue })
+  const api = { get: async url => String(url).startsWith('/common/chats?')
+    ? { page: 0, pages: 1, items: String(url).includes('%5B136453079%5D')
+      ? [{ id: 'ambiguous-chat', unread_message_count: 1 }] : [] }
+    : { items: [{ id: 'applicant', role: 'APPLICANT', resume_id: 'ambiguous-resume' }] } }
+  const run = await buildChatLinkRun({ api, token: 'opaque', key,
+    store: { findNegotiationsByResume: async () => [
+      { negotiation_id: 'first', person_id: 'person', identity_status: 'proved_link' },
+      { negotiation_id: 'second', person_id: 'person', identity_status: 'proved_link' },
+    ] } })
+  assert.equal(run.rows[0].linkStatus, 'AMBIGUOUS_NEGOTIATION')
+  assert.equal(run.rows[0].negotiationId, null)
+  assert.equal(run.counts.identity_linked, 0)
+  assert.equal(run.counts.unknown_identity, 1)
+})
+
+test('owner chat readback is unavailable without a protected token and never returns IDs', async () => {
+  const row = { chat_alias: 'HC-opaque', vacancy_bucket: 'CHELYABINSK_PROVEN', unread_count: 1,
+    last_message_marker: 'opaque-marker', participant_viewed_markers: [],
+    link_status: 'PROVIDER_LINKED', identity_linked: false,
+    chat_id_box: { private: 'provider-id' }, negotiation_id: 'provider-negotiation-id' }
+  const make = token => createHHRuntime({ HH_OAUTH_ENABLED: 'false',
+    HH_CHAT_READBACK_TOKEN: token }, { pool: {}, store: { chatLinkReadback: async () => ({
+      run: { run_id: 'run-id', snapshot_hash: 'hash', observed_at: '2026-10-01T00:00:00Z',
+        counts: { total_chats: 1, unknown_identity: 1 } }, rows: [row] }) } })
+  const disabled = make('')
+  const protectedRuntime = make('r'.repeat(48))
+  const server = http.createServer((req, res) => {
+    void (req.url.includes('disabled') ? disabled : protectedRuntime).handle(req, res)
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const origin = `http://127.0.0.1:${server.address().port}`
+    assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback?disabled=1`)).status, 404)
+    assert.equal((await fetch(`${origin}/integrations/hh/chats/owner-readback`)).status, 401)
+    const response = await fetch(`${origin}/integrations/hh/chats/owner-readback`,
+      { headers: { authorization: `Bearer ${'r'.repeat(48)}` } })
+    assert.equal(response.status, 200)
+    const body = await response.text()
+    assert.equal(body.includes('HC-opaque'), true)
+    assert.equal(body.includes('provider-id'), false)
+    assert.equal(body.includes('provider-negotiation-id'), false)
+  } finally { server.close() }
 })
 
 test('protected HH database count readback exposes only numeric aggregates', async () => {
