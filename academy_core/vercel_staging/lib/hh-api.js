@@ -1,10 +1,10 @@
 const { HH_API_ORIGIN, HH_REDIRECT_URI, safeApiUrl } = require('./hh-security')
 
 function hhApi(env, fetchImpl = fetch) {
-  const agent = String(env.HH_API_USER_AGENT || '')
+  const agent = String(env.HH_API_USER_AGENT || '').trim()
   if (!/^.{3,100}\([^()\s]+@[^()\s]+\)$/.test(agent)) throw new Error('HH_USER_AGENT_REQUIRED')
-  const clientId = String(env.HH_CLIENT_ID || '')
-  const clientSecret = String(env.HH_CLIENT_SECRET || '')
+  const clientId = String(env.HH_CLIENT_ID || '').trim()
+  const clientSecret = String(env.HH_CLIENT_SECRET || '').trim()
   if (!clientId || !clientSecret) throw new Error('HH_CREDENTIALS_REQUIRED')
 
   async function request(url, { token, method = 'GET', body, expectedPath = '/' } = {}) {

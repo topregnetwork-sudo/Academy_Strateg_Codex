@@ -49,6 +49,24 @@ test('HH API transport never permits provider action methods from read path', as
   assert.equal(typeof api.authorizeUrl({ state: 's', challenge: 'c' }), 'string')
 })
 
+test('HH configuration strips surrounding whitespace before OAuth and API requests', async () => {
+  const calls = []
+  const agent = 'Academy/1.0 (owner@example.com)'
+  const api = hhApi({ HH_CLIENT_ID: '\r\n client-id \n', HH_CLIENT_SECRET: '\n client-secret \r\n',
+    HH_API_USER_AGENT: ` \n${agent}\r\n` }, async (url, options) => {
+    calls.push({ url: String(url), options })
+    return { ok: true, status: 200, json: async () => ({ access_token: 'opaque' }) }
+  })
+  const authorize = new URL(api.authorizeUrl({ state: 'state', challenge: 'challenge' }))
+  assert.equal(authorize.searchParams.get('client_id'), 'client-id')
+  await api.exchangeCode('code', 'verifier')
+  const body = new URLSearchParams(calls[0].options.body)
+  assert.equal(body.get('client_id'), 'client-id')
+  assert.equal(body.get('client_secret'), 'client-secret')
+  assert.equal(calls[0].options.headers['HH-User-Agent'], agent)
+  assert.equal(calls[0].options.headers['User-Agent'], agent)
+})
+
 test('manager/employer identity remains fail-closed', () => {
   const valid = managerContext({ id: '42', last_name: 'Шипунов', first_name: 'Максим',
     middle_name: 'Александрович', employer: { id: '1702778', name: 'Альтеза' } })
