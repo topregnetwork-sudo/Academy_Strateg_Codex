@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { randomBytes } = require('node:crypto')
 const http = require('node:http')
-const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl } = require('../lib/hh-security')
+const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl, signReceiver } = require('../lib/hh-security')
 const { hhApi } = require('../lib/hh-api')
 const { managerContext, verifyContext, metadataOnly, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
@@ -166,5 +166,40 @@ test('production OAuth callback consumes state once and exposes no token or code
     const replay = await fetch(callbackUrl, { headers: { cookie } })
     assert.equal(replay.status, 400)
     assert.equal(tokenCalls, 1)
+  } finally { server.close() }
+})
+
+test('official HH callback shape is scoped and duplicate delivery is idempotent', async () => {
+  const events = new Set()
+  const store = {
+    connection: async () => ({ manager_id: '42', webhook_subscription_id: 'sub-1' }),
+    webhookEvent: async ({ callbackId, vacancyId, negotiationId }) => {
+      assert.equal(vacancyId, '136455388')
+      assert.equal(negotiationId, null)
+      if (events.has(callbackId)) return 'duplicate'
+      events.add(callbackId)
+      return 'accepted'
+    },
+  }
+  const runtime = createHHRuntime({ HH_OAUTH_ENABLED: 'true', HH_WEBHOOK_ENABLED: 'true',
+    HH_TOKEN_ENCRYPTION_KEY: keyValue }, { pool: {}, store })
+  runtime.state.schema = 'ready'
+  const receiver = signReceiver('hh-ru-employer', encryptionKey({ HH_TOKEN_ENCRYPTION_KEY: keyValue }))
+  const server = http.createServer((req, res) => { void runtime.handle(req, res) })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/integrations/hh/webhook/${receiver}`
+    const event = { action_type: 'NEW_NEGOTIATION_VACANCY', id: 'event-1',
+      subscription_id: 'sub-1', user_id: '42', payload: { employer_id: '1702778',
+        vacancy_id: '136455388', resume_id: 'private-provider-id' } }
+    const post = payload => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload) })
+    assert.equal((await post(event)).status, 200)
+    const duplicate = await post(event)
+    assert.equal(duplicate.status, 200)
+    assert.equal((await duplicate.json()).duplicate, true)
+    assert.equal(events.size, 1)
+    assert.equal((await post({ ...event, payload: { ...event.payload, vacancy_id: 'other' } })).status, 400)
+    assert.equal(events.size, 1)
   } finally { server.close() }
 })
