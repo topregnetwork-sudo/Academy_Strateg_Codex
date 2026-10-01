@@ -114,6 +114,7 @@ function noMeasured(run, sourceComplete) {
     status: sourceComplete ? 'JOIN_EVIDENCE_INCOMPLETE' : 'SOURCE_INCOMPLETE',
     denominators: { D_seen: NOT_MEASURED, D_qualifying: NOT_MEASURED, D_target_A_sum: NOT_MEASURED, D_person_A_sum: NOT_MEASURED, D_person_union: NOT_MEASURED },
     negotiation_dispositions: NOT_MEASURED, person_dispositions: NOT_MEASURED,
+    plausible_target_diagnostic_non_additive: NOT_MEASURED,
     overlap_flags_non_additive: NOT_MEASURED,
     reconciliation: { negotiation: NOT_MEASURED, person: NOT_MEASURED },
     completeness: run
@@ -145,7 +146,7 @@ function exactException(rows, trainer, target, vacancyRefs, now) {
   if (row.reason === 'REOPEN_TERMINAL_TRAINER_PROCESS' && trainer.stage === 'TERMINAL') return 'REOPEN';
   return null;
 }
-function personDisposition(group, sources, indexes, now) {
+function personDisposition(group, sources, indexes, exactTargetsByPerson, now) {
   const { target, negotiations } = group;
   const trainer = one(indexes.trainer, `${target.personRef}|${target.targetRef}`);
   const negotiationRefs = new Set(negotiations.map(row => row.negotiationRef));
@@ -161,7 +162,11 @@ function personDisposition(group, sources, indexes, now) {
     return { primary: 'SOURCE_EVIDENCE_INCOMPLETE', flags: [] };
   }
   const allEvents = [...sources.refusal.rows, ...sources.suppression.rows, ...sources.delivery.rows].filter(row => row.personRef === target.personRef);
-  if (allEvents.some(row => row.scope === 'UNKNOWN' && (row.targetRef === target.targetRef || negotiationRefs.has(row.negotiationRef)))) return { primary: 'REVIEW_BLOCKED_SCOPE', flags: [] };
+  if (allEvents.some(row => row.scope === 'UNKNOWN' &&
+      (row.targetRef === target.targetRef || negotiationRefs.has(row.negotiationRef) ||
+       (!row.targetRef && !row.negotiationRef && exactTargetsByPerson.get(target.personRef)?.size === 1)))) {
+    return { primary: 'REVIEW_BLOCKED_SCOPE', flags: [] };
+  }
   if (allEvents.some(row => applicable(row, target, negotiationRefs) &&
       ((Object.hasOwn(row, 'valid') && row.valid === false) || (row.kind === 'BOT_BLOCK' && row.providerProven === false)))) {
     return { primary: 'SOURCE_EVIDENCE_INCOMPLETE', flags: [] };
@@ -207,10 +212,8 @@ function evaluateProtectedAggregate(input) {
   if (!providerProof || Object.keys(providerProof).sort().join('|') !== 'authorizedScope|foundMatchesRows|stableDiscovery|terminalPages' ||
       Object.values(providerProof).some(value => typeof value !== 'boolean')) fail();
   const sourceReady = sourceComplete.provider && Object.values(providerProof).every(Boolean);
-  const unboundedUnknownScope = ['refusal', 'suppression', 'delivery'].some(name =>
-    input.sources[name].rows.some(row => row.scope === 'UNKNOWN' && !row.targetRef && !row.negotiationRef));
   const unboundedTarget = input.sources.target.rows.some(row => row.binding === 'unresolved' && !Number.isSafeInteger(row.plausibleTargetCount));
-  let joinReady = sourceReady && SOURCE_NAMES.every(name => sourceComplete[name]) && !unboundedUnknownScope && !unboundedTarget;
+  let joinReady = sourceReady && SOURCE_NAMES.every(name => sourceComplete[name]) && !unboundedTarget;
   const provenance = {
     run_id: input.runId, snapshot_hash: sha256(canonical({ manifest: MANIFEST_SHA256, observedAt: input.observedAt, sources: SOURCE_NAMES.map(name => [name, input.sources[name].version, input.sources[name].sha256, sourceComplete[name]]), coverage: providerProof })),
     observed_at: input.observedAt, code_version: CODE_VERSION, query_version: QUERY_VERSION,
@@ -250,10 +253,29 @@ function evaluateProtectedAggregate(input) {
   const rows = [...sourceRows.values()].sort((a, b) => a.negotiationRef.localeCompare(b.negotiationRef));
   const D_seen = rows.length;
   const D_qualifying = count(rows, row => row.area === 'CHELYABINSK_PROVEN' && row.purpose === 'trainer_recruitment');
+  const identityIndex = index(input.sources.identity.rows, 'negotiationRef');
+  const targetIndex = index(input.sources.target.rows, 'negotiationRef');
+  const exactTargetsByPerson = new Map();
+  for (const row of rows) {
+    if (row.rowComplete !== true || row.area !== 'CHELYABINSK_PROVEN' || row.purpose !== 'trainer_recruitment') continue;
+    const identity = one(identityIndex, row.negotiationRef);
+    const target = one(targetIndex, row.negotiationRef);
+    if (identity?.outcome !== 'unique' || target?.binding !== 'exact' || target.personRef !== identity.personRef ||
+        !ref(target.targetRef) || !ref(target.campaignRef) || !ref(target.routeRef)) continue;
+    if (!exactTargetsByPerson.has(identity.personRef)) exactTargetsByPerson.set(identity.personRef, new Set());
+    exactTargetsByPerson.get(identity.personRef).add(canonical([
+      target.personRef, target.targetRef, target.purpose, target.campaignRef, target.routeRef
+    ]));
+  }
+  // An unscoped person event can block a single exact A; with several exact As
+  // its affected A is unknown, so joined official measures remain unmeasured.
+  const unboundedUnknownScope = ['refusal', 'suppression', 'delivery'].some(name =>
+    input.sources[name].rows.some(event => event.scope === 'UNKNOWN' && !event.targetRef && !event.negotiationRef &&
+      (exactTargetsByPerson.get(event.personRef)?.size || 0) > 1));
   const targetRefs = new Set(input.sources.target.rows.map(row => row.negotiationRef));
   const missingTargetLookup = rows.some(row => row.area === 'CHELYABINSK_PROVEN' && row.purpose === 'trainer_recruitment' &&
     input.sources.identity.rows.some(link => link.negotiationRef === row.negotiationRef && link.outcome === 'unique') && !targetRefs.has(row.negotiationRef));
-  joinReady = joinReady && !missingTargetLookup;
+  joinReady = joinReady && !missingTargetLookup && !unboundedUnknownScope;
   if (!joinReady) {
     const result = noMeasured({ ...sourceComplete, scope_bounded: !unboundedUnknownScope && !unboundedTarget && !missingTargetLookup }, true);
     result.denominators.D_seen = D_seen;
@@ -261,14 +283,18 @@ function evaluateProtectedAggregate(input) {
     return { ...base, ...result };
   }
   const indexes = {
-    identity: index(input.sources.identity.rows, 'negotiationRef'),
-    target: index(input.sources.target.rows, 'negotiationRef'),
+    identity: identityIndex,
+    target: targetIndex,
     freshness: index(input.sources.freshness.rows, 'negotiationRef'),
     communication: index(input.sources.communication.rows, 'negotiationRef'),
     trainer: index(input.sources.trainer.rows, 'personRef')
   };
   indexes.trainer = index(input.sources.trainer.rows.map(row => ({ ...row, personTarget: `${row.personRef}|${row.targetRef}` })), 'personTarget');
   const neg = counts(NEG_CODES);
+  const plausible = {
+    finite_unresolved_negotiations: 0, plausible_target_memberships: 0,
+    coverage: 'COMPLETE_FINITE', additive_denominator: false
+  };
   const groups = new Map();
   const linked = [];
   for (const row of rows) {
@@ -300,13 +326,28 @@ function evaluateProtectedAggregate(input) {
       }
     }
     if (primary) neg[primary]++;
+    if (primary === 'TARGET_SCOPE_UNRESOLVED') {
+      const target = one(indexes.target, row.negotiationRef);
+      if (target && target !== 'CONFLICT' && target.binding === 'unresolved' &&
+          Number.isSafeInteger(target.plausibleTargetCount)) {
+        plausible.finite_unresolved_negotiations++;
+        plausible.plausible_target_memberships += target.plausibleTargetCount;
+        if (!Number.isSafeInteger(plausible.plausible_target_memberships)) fail();
+      } else plausible.coverage = 'PARTIAL';
+    }
+  }
+  if (plausible.coverage === 'PARTIAL') {
+    const result = noMeasured({ ...sourceComplete, scope_bounded: false }, true);
+    result.denominators.D_seen = D_seen;
+    result.denominators.D_qualifying = D_qualifying;
+    return { ...base, ...result };
   }
   const person = counts(PERSON_CODES);
   const overlap = counts(PERSON_CODES.slice(4, 15));
   const outcomes = new Map();
   const now = Date.parse(input.observedAt);
   for (const [key, group] of groups) {
-    const result = personDisposition(group, input.sources, indexes, now);
+    const result = personDisposition(group, input.sources, indexes, exactTargetsByPerson, now);
     outcomes.set(key, result.primary);
     person[result.primary]++;
     for (const flag of result.flags) if (Object.hasOwn(overlap, flag)) overlap[flag]++;
@@ -323,9 +364,11 @@ function evaluateProtectedAggregate(input) {
   return {
     ...base, status: 'SYNTHETIC_AGGREGATE_RECONCILED', completeness: sourceComplete,
     implementation_ready_for_review: neg.SOURCE_ROW_INCOMPLETE === 0 &&
-      person.SOURCE_EVIDENCE_INCOMPLETE === 0 && person.REVIEW_BLOCKED_SCOPE === 0,
+      person.SOURCE_EVIDENCE_INCOMPLETE === 0 && person.REVIEW_BLOCKED_SCOPE === 0 &&
+      plausible.coverage === 'COMPLETE_FINITE',
     denominators: { D_seen, D_qualifying, D_target_A_sum: linked.length, D_person_A_sum: groups.size, D_person_union: personUnion },
-    negotiation_dispositions: neg, person_dispositions: person, overlap_flags_non_additive: overlap,
+    negotiation_dispositions: neg, person_dispositions: person,
+    plausible_target_diagnostic_non_additive: plausible, overlap_flags_non_additive: overlap,
     reconciliation: { negotiation: true, person: true, target_binding: true,
       D_seen_disposition_sum: negotiationSum, D_target_A_sum_linked: linked.length,
       D_person_A_sum_bucket_sum: personSum }

@@ -173,6 +173,45 @@ test('identity unique/missing/ambiguous/conflict and target unresolved are exclu
   assert.equal(result.negotiation_dispositions.TARGET_SCOPE_UNRESOLVED, 1);
   assert.equal(result.denominators.D_qualifying, 2);
   assert.equal(result.denominators.D_target_A_sum, 1);
+  assert.equal(result.denominators.D_person_A_sum, 1);
+  assert.deepEqual(result.plausible_target_diagnostic_non_additive, {
+    finite_unresolved_negotiations: 1, plausible_target_memberships: 2,
+    coverage: 'COMPLETE_FINITE', additive_denominator: false
+  });
+  assert.equal(result.reconciliation.D_seen_disposition_sum, result.denominators.D_seen);
+  assert.ok(!JSON.stringify(result).includes('syn-t1'));
+});
+
+test('finite plausible targets remain non-additive through duplicate and multiple unresolved negotiations', () => {
+  const input = fixture();
+  modify(input, 'target', rows => rows.forEach(row => {
+    row.binding = 'unresolved'; delete row.targetRef; row.plausibleTargetCount = 2;
+  }));
+  modify(input, 'provider', rows => rows.push(structuredClone(rows[0])));
+  const result = evaluate(input);
+  assert.equal(result.negotiation_dispositions.TARGET_SCOPE_UNRESOLVED, 2);
+  assert.equal(result.denominators.D_seen, 3);
+  assert.equal(result.denominators.D_qualifying, 2);
+  assert.equal(result.denominators.D_target_A_sum, 0);
+  assert.equal(result.denominators.D_person_A_sum, 0);
+  assert.equal(result.person_dispositions.ELIGIBLE_REVIEW, 0);
+  assert.deepEqual(result.plausible_target_diagnostic_non_additive, {
+    finite_unresolved_negotiations: 2, plausible_target_memberships: 4,
+    coverage: 'COMPLETE_FINITE', additive_denominator: false
+  });
+  assert.equal(result.reconciliation.D_seen_disposition_sum, 3);
+  assert.equal(result.outbound, 'DISABLED');
+  modify(input, 'suppression', rows => rows.push({ personRef: 'syn-p1', kind: 'DNC', scope: 'UNKNOWN', active: true }));
+  const noExactA = evaluate(input);
+  assert.equal(noExactA.negotiation_dispositions.TARGET_SCOPE_UNRESOLVED, 2);
+  assert.equal(noExactA.denominators.D_person_A_sum, 0);
+  assert.equal(noExactA.plausible_target_diagnostic_non_additive.plausible_target_memberships, 4);
+  const reversed = structuredClone(input);
+  for (const name of sourceNames) {
+    reversed.sources[name].rows.reverse();
+    reversed.sources[name].sha256 = hashRows(reversed.sources[name].rows);
+  }
+  assert.deepEqual(evaluate(reversed), noExactA);
 });
 
 test('source-row, unknown-area and non-Trainer classifications follow source precedence', () => {
@@ -251,18 +290,62 @@ test('unknown event scope and missing evidence block, while stale/no-reply are d
   assert.deepEqual(primary(evaluate(unprovenSilence)), ['SOURCE_EVIDENCE_INCOMPLETE']);
 });
 
-test('unbounded unknown event/target scope keeps downstream official counts NOT_MEASURED', () => {
+test('UNKNOWN event scope with one exact A blocks once without dropping proven person denominator', () => {
   const event = fixture(); modify(event, 'suppression', rows => rows.push({ personRef: 'syn-p1', kind: 'DNC', scope: 'UNKNOWN', active: true }));
-  let result = evaluate(event);
+  const result = evaluate(event);
   assert.equal(result.denominators.D_seen, 3);
+  assert.equal(result.denominators.D_qualifying, 2);
+  assert.equal(result.denominators.D_target_A_sum, 2);
+  assert.equal(result.denominators.D_person_A_sum, 1);
+  assert.equal(result.denominators.D_person_union, 1);
+  assert.equal(result.person_dispositions.REVIEW_BLOCKED_SCOPE, 1);
+  assert.equal(result.person_dispositions.ELIGIBLE_REVIEW, 0);
+  assert.equal(result.negotiation_dispositions['LINKED_PERSON_FOR_TARGET:REVIEW_BLOCKED_SCOPE'], 2);
+  assert.equal(result.reconciliation.D_person_A_sum_bucket_sum, 1);
+  assert.equal(result.implementation_ready_for_review, false);
+  assert.equal(result.candidate_selection, false);
+  assert.equal(result.outbound, 'DISABLED');
+  modify(event, 'suppression', rows => rows.push(structuredClone(rows[0])));
+  const replay = evaluate(event);
+  assert.equal(replay.denominators.D_person_A_sum, 1);
+  assert.equal(replay.person_dispositions.REVIEW_BLOCKED_SCOPE, 1);
+  assert.equal(replay.reconciliation.D_person_A_sum_bucket_sum, 1);
+});
+
+test('UNKNOWN unbound person event with multiple exact As remains NOT_MEASURED, scoped event does not spill', () => {
+  const input = fixture();
+  modify(input, 'target', rows => Object.assign(rows[1], { targetRef: 'syn-t2', campaignRef: 'syn-c2', routeRef: 'syn-r2' }));
+  modify(input, 'trainer', rows => rows.push({ ...rows[0], targetRef: 'syn-t2' }));
+  modify(input, 'suppression', rows => rows.push({ personRef: 'syn-p1', kind: 'DNC', scope: 'UNKNOWN', active: true }));
+  let result = evaluate(input);
+  assert.equal(result.denominators.D_seen, 3);
+  assert.equal(result.denominators.D_qualifying, 2);
   assert.equal(result.denominators.D_person_A_sum, NOT_MEASURED);
   assert.equal(result.completeness.scope_bounded, false);
+  assert.equal(result.implementation_ready_for_review, false);
+  modify(input, 'suppression', rows => { rows[0].targetRef = 'syn-t1'; });
+  result = evaluate(input);
+  assert.equal(result.denominators.D_person_A_sum, 2);
+  assert.equal(result.denominators.D_person_union, 1);
+  assert.equal(result.person_dispositions.REVIEW_BLOCKED_SCOPE, 1);
+  assert.equal(result.person_dispositions.ELIGIBLE_REVIEW, 1);
+});
+
+test('unbounded target scope keeps downstream official counts NOT_MEASURED', () => {
   const target = fixture(); modify(target, 'target', rows => { rows[0].binding = 'unresolved'; delete rows[0].targetRef; });
-  result = evaluate(target);
+  let result = evaluate(target);
   assert.equal(result.denominators.D_qualifying, 2);
   assert.equal(result.denominators.D_target_A_sum, NOT_MEASURED);
+  assert.equal(result.plausible_target_diagnostic_non_additive, NOT_MEASURED);
   const missing = fixture(); modify(missing, 'target', rows => rows.pop());
   assert.equal(evaluate(missing).denominators.D_person_A_sum, NOT_MEASURED);
+  const conflict = fixture(); modify(conflict, 'target', rows => rows.push({ ...rows[0], targetRef: 'syn-t2' }));
+  result = evaluate(conflict);
+  assert.equal(result.denominators.D_seen, 3);
+  assert.equal(result.denominators.D_qualifying, 2);
+  assert.equal(result.denominators.D_target_A_sum, NOT_MEASURED);
+  assert.equal(result.plausible_target_diagnostic_non_additive, NOT_MEASURED);
+  assert.equal(result.completeness.scope_bounded, false);
 });
 
 test('all absolute stop families remain separate from reuse and contact permission', () => {

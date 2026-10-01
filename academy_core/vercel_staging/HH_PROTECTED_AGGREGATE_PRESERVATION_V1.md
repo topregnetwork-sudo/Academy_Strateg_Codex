@@ -52,3 +52,16 @@ per-target-output limitation. Preserve the pure synthetic-only, no-IO and
 fail-closed semantics, existing HH runtime, and all prior tests. No merge,
 push, connected read or deployment. A failed local delta is recoverable by
 reverting only its new commit; production remains unchanged.
+
+## Trainer 30 V2.6 semantic precision delta
+
+Change ID: `HH-TRAINER-PROTECTED-AGGREGATE-V1-V26-PRECISION`.
+Local baseline: `21e3f132e75177748575c013c791785034172933`.
+Trainer review SHA-256:
+`EB759A576E97A8FA0CDBC300DC651EAF712115E48AF98E72B3200028CE5E05EF`.
+Add only a non-additive, reference-free finite plausible-target diagnostic and
+the V2.6 UNKNOWN event-scope person×exact-A blocked roll-up. Never add
+plausible memberships to `D_target_A_sum`/`D_person_A_sum`, never emit target
+IDs, and keep multiple possible exact-A associations fail-closed. Preserve
+V4 release/privacy/zero-effect fields and the partial-communication regression.
+Rollback this delta's own local commit only; no production change is planned.
