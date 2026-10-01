@@ -8,6 +8,7 @@ const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl, signRece
 const { hhApi } = require('../lib/hh-api')
 const { managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
+const { inventoryChats, probeNoViewed } = require('../lib/hh-chats')
 const { createHHRuntime } = require('../lib/hh-runtime')
 
 const keyValue = randomBytes(32).toString('base64url')
@@ -96,6 +97,51 @@ test('Chelyabinsk anchor without provider city proof fails closed', async () => 
     : { id: String(url).match(/^\/vacancies\/(\d+)/)[1], employer: { id: '1702778' } } }
   await assert.rejects(discoverVacancies({ api, token: 'opaque', store: { saveVacancy: async () => {} } }),
     /HH_CHELYABINSK_ANCHOR_UNPROVEN/)
+})
+
+test('current Chats API inventory filters vacancy IDs and discards message text', async () => {
+  const calls = []
+  const api = { get: async url => {
+    calls.push(String(url))
+    return { page: 0, pages: 1, items: [{ id: '36', type: 'NEGOTIATION',
+      unread_message_count: 1, last_message: { id: '38', payload: { text: 'private content' } } }] }
+  } }
+  const result = await inventoryChats({ api, token: 'opaque', vacancyIds: ['136453079'] })
+  assert.equal(calls.length, 1)
+  assert.match(calls[0], /filter_with_vacancy_ids=%5B136453079%5D/)
+  assert.equal(JSON.stringify(result).includes('private content'), false)
+  assert.deepEqual(result.chats, [{ chatId: '36', type: 'NEGOTIATION', unreadCount: 1, lastMessageId: '38' }])
+})
+
+test('one-chat message probe fails closed if read changes viewed marker', async () => {
+  let participantReads = 0
+  const api = { get: async url => {
+    const value = String(url)
+    if (value.includes('/participants')) return { items: [{ id: '7', role: 'APPLICANT',
+      last_viewed_message_id: participantReads++ ? '38' : '37' }] }
+    if (value.includes('/messages?')) return { items: [{ id: '38', payload: { text: 'private' } }] }
+    if (value.includes('/counters/unread')) return { unread_chats_count: '1' }
+    return { page: 0, pages: 1, items: [{ id: '36', type: 'NEGOTIATION',
+      unread_message_count: 1, last_message: { id: '38' } }] }
+  } }
+  await assert.rejects(probeNoViewed({ api, token: 'opaque', vacancyIds: ['136453079'], candidateChatId: '36' }),
+    /HH_CHAT_VIEWED_EFFECT_UNPROVEN/)
+})
+
+test('stable one-chat probe returns only evidence counts, never message content', async () => {
+  const api = { get: async url => {
+    const value = String(url)
+    if (value.includes('/participants')) return { items: [{ id: '7', role: 'APPLICANT',
+      resume_id: 'r1', last_viewed_message_id: '37' }] }
+    if (value.includes('/messages?')) return { items: [{ id: '38', payload: { text: 'private' } }] }
+    if (value.includes('/counters/unread')) return { unread_chats_count: '1' }
+    return { page: 0, pages: 1, items: [{ id: '36', type: 'NEGOTIATION',
+      unread_message_count: 1, last_message: { id: '38' } }] }
+  } }
+  const result = await probeNoViewed({ api, token: 'opaque', vacancyIds: ['136453079'], candidateChatId: '36' })
+  assert.equal(result.viewedEffect, 'not_observed')
+  assert.equal(result.messagesStored, 0)
+  assert.equal(JSON.stringify(result).includes('private'), false)
 })
 
 test('full collection pagination and repeated snapshot create zero new rows through checkpoint replay', async () => {
