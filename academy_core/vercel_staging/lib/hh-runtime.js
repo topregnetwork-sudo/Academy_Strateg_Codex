@@ -41,6 +41,15 @@ function startErrorCode(error) {
     ? code : 'HH_START_STORAGE_OR_RUNTIME_FAILED'
 }
 
+function callbackErrorCode(stage, error) {
+  if (stage === 'session') return 'HH_CALLBACK_SESSION_STORAGE_FAILED'
+  if (stage === 'verifier') return 'HH_CALLBACK_VERIFIER_FAILED'
+  if (stage === 'token') return error?.message === 'HH_HTTP_400'
+    ? 'HH_CALLBACK_TOKEN_REJECTED' : 'HH_CALLBACK_TOKEN_EXCHANGE_FAILED'
+  if (stage === 'me') return 'HH_CALLBACK_ME_FAILED'
+  return 'HH_CALLBACK_SAVE_FAILED'
+}
+
 function createHHRuntime(env = process.env, deps = {}) {
   const pool = deps.pool || new Pool(databaseConfig(env))
   const store = deps.store || hhStore(pool)
@@ -191,30 +200,46 @@ function createHHRuntime(env = process.env, deps = {}) {
     const code = url.searchParams.get('code') || ''
     const browser = cookieValue(request, 'hh_oauth_session')
     if (!/^[A-Za-z0-9_-]{43}$/.test(stateValue) || !/^[A-Za-z0-9_-]{43}$/.test(browser) || code.length < 8 || code.length > 2048) {
+      state.lastError = !/^[A-Za-z0-9_-]{43}$/.test(browser) ? 'HH_CALLBACK_COOKIE_INVALID'
+        : !/^[A-Za-z0-9_-]{43}$/.test(stateValue) ? 'HH_CALLBACK_STATE_INVALID'
+          : 'HH_CALLBACK_CODE_INVALID'
       return json(response, 400, { ok: false, code: 'HH_CALLBACK_REJECTED' })
     }
+    let stage = 'session'
     try {
       const consumed = await store.consumeSession(sha256(stateValue), sha256(browser))
-      if (!consumed) return json(response, 400, { ok: false, code: 'HH_CALLBACK_REJECTED' })
+      if (!consumed) {
+        state.lastError = 'HH_CALLBACK_SESSION_REJECTED'
+        return json(response, 400, { ok: false, code: 'HH_CALLBACK_REJECTED' })
+      }
+      stage = 'verifier'
       const key = encryptionKey(env)
       const verifier = open(consumed.verifier_box, key)
       const api = hhApi(env, fetchImpl)
+      stage = 'token'
       const tokens = await api.exchangeCode(code, verifier)
       if (!validTokenResponse(tokens)) throw new Error('HH_TOKEN_RESPONSE_INVALID')
+      stage = 'me'
       const me = await api.get('/me?host=hh.ru', tokens.access_token, '/me')
       const context = managerContext(me)
       if (!verifyContext(context)) {
+        state.lastError = 'HH_CALLBACK_IDENTITY_CONFLICT'
         return json(response, 409, { ok: false, code: 'HH_IDENTITY_CONFLICT' })
       }
+      stage = 'save'
       await store.saveToken({ applicationId: APPLICATION_ID, accessBox: seal(tokens.access_token, key),
         refreshBox: seal(tokens.refresh_token, key), expiresAt: tokenExpiry(tokens) })
       await store.verifyManager({ ...context, expectedEmployerId: context.employerId })
       state.connection = 'active'
+      state.lastError = null
       response.setHeader('set-cookie', 'hh_oauth_session=; Path=/integrations/hh/oauth; Max-Age=0; HttpOnly; Secure; SameSite=Lax')
       json(response, 200, { ok: true, code: 'HH_CONNECTED', manager_id: context.managerId,
         employer_id: context.employerId })
       void runCycle()
-    } catch (_) { json(response, 503, { ok: false, code: 'HH_CALLBACK_FAILED' }) }
+    } catch (error) {
+      state.lastError = callbackErrorCode(stage, error)
+      json(response, 503, { ok: false, code: 'HH_CALLBACK_FAILED' })
+    }
   }
 
   async function webhook(request, response, receiver) {
@@ -269,4 +294,4 @@ function createHHRuntime(env = process.env, deps = {}) {
   return { start, handle, runCycle, state }
 }
 
-module.exports = { createHHRuntime, tokenExpiry, validTokenResponse, startErrorCode }
+module.exports = { createHHRuntime, tokenExpiry, validTokenResponse, startErrorCode, callbackErrorCode }

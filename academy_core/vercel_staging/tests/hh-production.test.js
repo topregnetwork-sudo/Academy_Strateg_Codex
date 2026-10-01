@@ -8,7 +8,7 @@ const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl, signRece
 const { hhApi } = require('../lib/hh-api')
 const { managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
-const { createHHRuntime, startErrorCode } = require('../lib/hh-runtime')
+const { createHHRuntime, startErrorCode, callbackErrorCode } = require('../lib/hh-runtime')
 
 const keyValue = randomBytes(32).toString('base64url')
 
@@ -191,6 +191,44 @@ test('OAuth startup exposes only redacted configuration or storage error codes',
   await blocked.start()
   assert.equal(blocked.state.lastError, 'HH_START_STORAGE_OR_RUNTIME_FAILED')
   assert.equal(JSON.stringify(blocked.state).includes('private'), false)
+})
+
+test('callback failures expose only allowlisted phase codes in health', async () => {
+  assert.equal(callbackErrorCode('token', new Error('HH_HTTP_400')), 'HH_CALLBACK_TOKEN_REJECTED')
+  assert.equal(callbackErrorCode('token', new Error('provider body with private data')),
+    'HH_CALLBACK_TOKEN_EXCHANGE_FAILED')
+  assert.equal(callbackErrorCode('me', new Error('private profile')), 'HH_CALLBACK_ME_FAILED')
+  assert.equal(callbackErrorCode('save', new Error('private database detail')), 'HH_CALLBACK_SAVE_FAILED')
+
+  const env = { HH_OAUTH_ENABLED: 'true', HH_CLIENT_ID: 'client-id', HH_CLIENT_SECRET: 'client-secret',
+    HH_TOKEN_ENCRYPTION_KEY: keyValue, HH_API_USER_AGENT: 'Academy/1.0 (owner@example.com)' }
+  let consume = async () => null
+  const runtime = createHHRuntime(env, { pool: {}, store: { consumeSession: (...args) => consume(...args) },
+    fetch: async () => ({ ok: false, status: 400 }) })
+  runtime.state.schema = 'ready'
+  const server = http.createServer((req, res) => { void runtime.handle(req, res) })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const origin = `http://127.0.0.1:${server.address().port}`
+    const callback = `${origin}/integrations/hh/oauth/callback?state=${'s'.repeat(43)}&code=private-code-123`
+    const health = async () => (await (await fetch(`${origin}/integrations/hh/health`)).json()).last_error_code
+    const noCookie = await fetch(callback)
+    assert.equal(noCookie.status, 400)
+    assert.equal(await health(), 'HH_CALLBACK_COOKIE_INVALID')
+    const withCookie = { cookie: `hh_oauth_session=${'b'.repeat(43)}` }
+    const unmatched = await fetch(callback, { headers: withCookie })
+    assert.equal(unmatched.status, 400)
+    assert.equal(await health(), 'HH_CALLBACK_SESSION_REJECTED')
+    consume = async () => ({ verifier_box: seal('v'.repeat(43), encryptionKey(env)) })
+    const tokenRejected = await fetch(callback, { headers: withCookie })
+    assert.equal(tokenRejected.status, 503)
+    const body = await tokenRejected.text()
+    assert.equal(await health(), 'HH_CALLBACK_TOKEN_REJECTED')
+    for (const secret of ['private-code-123', 'client-secret', keyValue]) {
+      assert.equal(body.includes(secret), false)
+      assert.equal(JSON.stringify(runtime.state).includes(secret), false)
+    }
+  } finally { server.close() }
 })
 
 test('production OAuth callback consumes state once and exposes no token or code', async () => {
