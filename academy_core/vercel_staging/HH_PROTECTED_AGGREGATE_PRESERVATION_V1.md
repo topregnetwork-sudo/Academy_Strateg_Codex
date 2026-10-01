@@ -39,3 +39,16 @@ For the local code change, revert its commit only; production remains at the
 baseline and requires no rollback. The dedicated rollback branch already
 points at the baseline locally; remote publication was not completed and is
 not a prerequisite for this no-deploy change.
+
+## Acceptance 90 V4 pre-integration delta
+
+Change ID: `HH-TRAINER-PROTECTED-AGGREGATE-V1-PREINTEGRATION`.
+Canonical local base: `76b242bdb531427bfd38a5be4cd14795e5f10d88`.
+Acceptance V4 SHA-256:
+`D7285F56F26FFB83BB97E1607A36632778F14340EFD61B173375F14DF5B3CA46`.
+Only add explicit release/privacy/zero-effect fields, a same-person×target
+multi-negotiation incomplete-communication regression, and a documented
+per-target-output limitation. Preserve the pure synthetic-only, no-IO and
+fail-closed semantics, existing HH runtime, and all prior tests. No merge,
+push, connected read or deployment. A failed local delta is recoverable by
+reverting only its new commit; production remains unchanged.

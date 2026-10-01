@@ -70,7 +70,20 @@ test('complete source and exact person×target algebra; no IDs or rows escape', 
   assert.deepEqual(result.reconciliation, { negotiation: true, person: true, target_binding: true,
     D_seen_disposition_sum: 3, D_target_A_sum_linked: 2, D_person_A_sum_bucket_sum: 1 });
   assert.equal(result.audience_ready, false);
+  assert.equal(result.implementation_ready_for_review, true);
+  assert.equal(result.ready_for_owner_test, false);
   assert.equal(result.outbound, 'DISABLED');
+  assert.equal(result.candidate_selection, false);
+  assert.equal(result.candidate_selected, false);
+  assert.deepEqual(result.privacy, { pii_fields_emitted: 0, row_identifiers_emitted: 0, candidate_rows_emitted: 0 });
+  assert.deepEqual(result.per_target_reconciliation, {
+    mode: 'CROSS_TARGET_SUMS_ONLY', D_target_A: 'NOT_EMITTED',
+    D_person_A: 'NOT_EMITTED', protected_query_required: true
+  });
+  for (const key of ['source_reads', 'source_writes', 'person_reads', 'person_writes',
+    'candidate_reads', 'candidate_writes', 'card_writes', 'journey_writes',
+    'status_writes', 'message_reads', 'message_writes', 'sends', 'webhook_writes',
+    'outbox_writes', 'domain_writes']) assert.equal(result.effects[key], 0);
   assert.ok(Object.entries(result.effects).every(([key, value]) => key === 'scope' || value === 0));
   const serial = JSON.stringify(result);
   for (const id of ['syn-n1', 'syn-n2', 'syn-n3', 'syn-p1', 'syn-t1', 'syn-c1', 'syn-r1']) assert.ok(!serial.includes(id));
@@ -101,11 +114,19 @@ test('permutation and identical duplicates do not change snapshot or counts', ()
 
 test('incomplete provider or conflicting duplicate fails all denominators closed', () => {
   const partial = fixture(); partial.sources.provider.complete = false;
-  assert.equal(evaluate(partial).denominators.D_seen, NOT_MEASURED);
+  const partialResult = evaluate(partial);
+  assert.equal(partialResult.denominators.D_seen, NOT_MEASURED);
+  assert.equal(partialResult.implementation_ready_for_review, false);
+  assert.equal(partialResult.ready_for_owner_test, false);
+  assert.equal(partialResult.candidate_selection, false);
+  assert.deepEqual(partialResult.privacy, { pii_fields_emitted: 0, row_identifiers_emitted: 0, candidate_rows_emitted: 0 });
   const pageGap = fixture(); pageGap.sources.provider.coverage.terminalPages = false;
   assert.equal(evaluate(pageGap).denominators.D_qualifying, NOT_MEASURED);
   const conflict = fixture(); modify(conflict, 'provider', rows => rows.push({ ...rows[0], vacancyRef: 'syn-other-vacancy' }));
-  assert.equal(evaluate(conflict).denominators.D_seen, NOT_MEASURED);
+  const conflictResult = evaluate(conflict);
+  assert.equal(conflictResult.denominators.D_seen, NOT_MEASURED);
+  assert.equal(conflictResult.implementation_ready_for_review, false);
+  assert.equal(conflictResult.outbound, 'DISABLED');
 });
 
 test('incomplete joined source keeps only source denominator numeric', () => {
@@ -115,6 +136,26 @@ test('incomplete joined source keeps only source denominator numeric', () => {
   assert.equal(result.denominators.D_qualifying, 2);
   assert.equal(result.denominators.D_person_A_sum, NOT_MEASURED);
   assert.equal(result.person_dispositions, NOT_MEASURED);
+  assert.equal(result.implementation_ready_for_review, false);
+  assert.equal(result.ready_for_owner_test, false);
+  assert.equal(result.candidate_selection, false);
+});
+
+test('V4 regression: one incomplete communication row in same person×target blocks eligibility', () => {
+  const input = fixture();
+  modify(input, 'communication', rows => { rows[1].coverage = 'PARTIAL'; });
+  const result = evaluate(input);
+  assert.equal(result.denominators.D_qualifying, 2);
+  assert.equal(result.denominators.D_person_A_sum, 1);
+  assert.equal(result.person_dispositions.SOURCE_EVIDENCE_INCOMPLETE, 1);
+  assert.equal(result.person_dispositions.ELIGIBLE_REVIEW, 0);
+  assert.equal(result.negotiation_dispositions['LINKED_PERSON_FOR_TARGET:SOURCE_EVIDENCE_INCOMPLETE'], 2);
+  assert.equal(result.implementation_ready_for_review, false);
+  assert.equal(result.audience_ready, false);
+  assert.equal(result.ready_for_owner_test, false);
+  assert.equal(result.candidate_selection, false);
+  assert.equal(result.outbound, 'DISABLED');
+  assert.deepEqual(result.privacy, { pii_fields_emitted: 0, row_identifiers_emitted: 0, candidate_rows_emitted: 0 });
 });
 
 test('identity unique/missing/ambiguous/conflict and target unresolved are exclusive', () => {

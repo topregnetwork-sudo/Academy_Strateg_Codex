@@ -218,8 +218,26 @@ function evaluateProtectedAggregate(input) {
     source_versions: Object.fromEntries(SOURCE_NAMES.map(name => [name, input.sources[name].version])),
     source_hashes: Object.fromEntries(SOURCE_NAMES.map(name => [name, input.sources[name].sha256]))
   };
-  const effects = { scope: 'LOCAL_SYNTHETIC_NO_IO', message_reads: 0, sends: 0, status_writes: 0, webhook_writes: 0, outbox_writes: 0, domain_writes: 0 };
-  const base = { ...provenance, effects, outbound: 'DISABLED', audience_ready: false };
+  const effects = {
+    scope: 'LOCAL_SYNTHETIC_NO_IO', source_reads: 0, source_writes: 0,
+    person_reads: 0, person_writes: 0, candidate_reads: 0, candidate_writes: 0,
+    card_writes: 0, journey_writes: 0, status_writes: 0,
+    message_reads: 0, message_writes: 0, sends: 0, webhook_writes: 0,
+    outbox_writes: 0, domain_writes: 0
+  };
+  const privacy = { pii_fields_emitted: 0, row_identifiers_emitted: 0, candidate_rows_emitted: 0 };
+  // A contains person_ref. Per-A values must be produced later by a protected query,
+  // not released as person-keyed or singleton buckets from this local envelope.
+  const perTargetLimitation = {
+    mode: 'CROSS_TARGET_SUMS_ONLY', D_target_A: 'NOT_EMITTED',
+    D_person_A: 'NOT_EMITTED', protected_query_required: true
+  };
+  const base = {
+    ...provenance, effects, privacy, per_target_reconciliation: perTargetLimitation,
+    implementation_ready_for_review: false, audience_ready: false,
+    ready_for_owner_test: false, outbound: 'DISABLED',
+    candidate_selection: false, candidate_selected: false
+  };
   const sourceRows = new Map();
   let duplicateConflict = false;
   for (const row of input.sources.provider.rows) {
@@ -304,6 +322,8 @@ function evaluateProtectedAggregate(input) {
   if (!reconciled) return { ...base, ...noMeasured(sourceComplete, true), status: 'RECONCILIATION_FAILED' };
   return {
     ...base, status: 'SYNTHETIC_AGGREGATE_RECONCILED', completeness: sourceComplete,
+    implementation_ready_for_review: neg.SOURCE_ROW_INCOMPLETE === 0 &&
+      person.SOURCE_EVIDENCE_INCOMPLETE === 0 && person.REVIEW_BLOCKED_SCOPE === 0,
     denominators: { D_seen, D_qualifying, D_target_A_sum: linked.length, D_person_A_sum: groups.size, D_person_union: personUnion },
     negotiation_dispositions: neg, person_dispositions: person, overlap_flags_non_additive: overlap,
     reconciliation: { negotiation: true, person: true, target_binding: true,
