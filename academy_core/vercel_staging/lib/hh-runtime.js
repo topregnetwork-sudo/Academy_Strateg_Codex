@@ -6,6 +6,7 @@ const { hhStore } = require('./hh-store')
 const { hhApi } = require('./hh-api')
 const { buildChatLinkRun, operatorProjection } = require('./hh-chat-link')
 const { discoverVacancies, syncVacancy, managerContext, verifyContext } = require('./hh-sync')
+const { activeAcquisitionAllowed } = require('./hh-vacancy-registry')
 const { HH_REDIRECT_URI, HH_SESSION_TTL_MS, sha256, encryptionKey, seal, open,
   randomOpaque, challenge, signReceiver, fixedEqual } = require('./hh-security')
 
@@ -292,6 +293,7 @@ function createHHRuntime(env = process.env, deps = {}) {
           suppliedSubscriptionId !== connection.webhook_subscription_id ||
           String(body.user_id || '') !== String(connection.manager_id || '') ||
           String(payload.employer_id || '') !== '1702778' ||
+          !activeAcquisitionAllowed(String(payload.vacancy_id || '')) ||
           !await store.inScopeVacancy(String(payload.vacancy_id || ''))) {
         return json(response, 400, { ok: false })
       }

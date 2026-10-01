@@ -1,9 +1,10 @@
 const { createHmac, randomUUID } = require('node:crypto')
 const { inventoryChats, projectParticipants } = require('./hh-chats')
 const { seal } = require('./hh-security')
+const { HISTORICAL_REACTIVATION_VACANCY_ID } = require('./hh-vacancy-registry')
 
 const SCOPES = Object.freeze([
-  { vacancyId: '136453079', bucket: 'CHELYABINSK_PROVEN' },
+  { vacancyId: HISTORICAL_REACTIVATION_VACANCY_ID, bucket: 'CHELYABINSK_PROVEN' },
   { vacancyId: '136455388', bucket: 'OTHER' },
 ])
 

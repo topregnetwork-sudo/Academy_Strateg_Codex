@@ -1,7 +1,8 @@
 const { sha256, safeApiUrl } = require('./hh-security')
+const { HISTORICAL_REACTIVATION_VACANCY_ID, vacancyLifecycleFields } = require('./hh-vacancy-registry')
 
 const VACANCY_ID = '136455388'
-const CHELYABINSK_ANCHOR_ID = '136453079'
+const CHELYABINSK_ANCHOR_ID = HISTORICAL_REACTIVATION_VACANCY_ID
 const EXPECTED_MANAGER_NAME = 'Шипунов Максим Александрович'
 const EXPECTED_EMPLOYER_UI_ID = '1702778'
 
@@ -81,6 +82,7 @@ async function discoverVacancies({ api, token, store, maxPages = 100, maxVacanci
       publishedAt: vacancy.published_at || null, classification,
       areaId: vacancy.area?.id ? String(vacancy.area.id) : null,
       areaName: vacancy.area?.name ? String(vacancy.area.name).slice(0, 200) : null,
+      ...vacancyLifecycleFields(vacancyId),
       snapshotHash: sha256(JSON.stringify({ id: vacancy.id, employer: vacancy.employer?.id,
         area: vacancy.area?.id, areas: vacancy.areas?.map(x => x?.id),
         archived: vacancy.archived, published_at: vacancy.published_at })) })
@@ -103,6 +105,7 @@ async function syncVacancy({ api, token, store, vacancyId = VACANCY_ID, maxPages
     publishedAt: vacancy.published_at || null, classification: vacancyCity(vacancy),
     areaId: vacancy.area?.id ? String(vacancy.area.id) : null,
     areaName: vacancy.area?.name ? String(vacancy.area.name).slice(0, 200) : null,
+    ...vacancyLifecycleFields(vacancyId),
     snapshotHash: sha256(JSON.stringify({ id: vacancy.id, employer: vacancy.employer?.id,
       archived: vacancy.archived, published_at: vacancy.published_at })) })
 

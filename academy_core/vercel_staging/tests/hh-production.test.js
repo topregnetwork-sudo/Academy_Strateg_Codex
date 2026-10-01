@@ -11,6 +11,7 @@ const { inventoryChats, probeNoViewed } = require('../lib/hh-chats')
 const { buildChatLinkRun, operatorProjection } = require('../lib/hh-chat-link')
 const { managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
+const { REGISTRY_VERSION, vacancyLifecycle, activeAcquisitionAllowed } = require('../lib/hh-vacancy-registry')
 const { createHHRuntime, startErrorCode, callbackErrorCode } = require('../lib/hh-runtime')
 
 const keyValue = randomBytes(32).toString('base64url')
@@ -337,6 +338,87 @@ test('Chelyabinsk anchor without provider city proof fails closed', async () => 
     /HH_CHELYABINSK_ANCHOR_UNPROVEN/)
 })
 
+test('archived historical source stays readable and creates zero active acquisition effects', async () => {
+  assert.equal(REGISTRY_VERSION, 'hh-vacancy-lifecycle.v11')
+  assert.deepEqual(vacancyLifecycle('136453079'), {
+    source_mode: 'HISTORICAL_REACTIVATION',
+    vacancy_lifecycle: 'ARCHIVED',
+    archived_since: '2026-09-19',
+    active_acquisition_entry: false,
+    active_for_live: false,
+  })
+  assert.equal(activeAcquisitionAllowed('136453079'), false)
+  assert.equal(activeAcquisitionAllowed('136455388'), true)
+  assert.equal(activeAcquisitionAllowed('900'), true)
+
+  const queries = []
+  const client = {
+    async query(sql) {
+      const text = String(sql)
+      queries.push(text)
+      if (text.includes('insert into hh_sync_checkpoints')) return { rowCount: 1, rows: [{ page: 0 }] }
+      if (text.includes('insert into hh_negotiations')) return { rowCount: 1, rows: [{ inserted: true }] }
+      return { rowCount: 1, rows: [] }
+    },
+    release() {},
+  }
+  const pool = {
+    async connect() { return client },
+    async query(sql) { queries.push(String(sql)); return { rowCount: 1, rows: [] } },
+  }
+  const persistent = hhStore(pool)
+  let vacancyRecord = null
+  const store = {
+    ...persistent,
+    async saveVacancy(record) { vacancyRecord = record; await persistent.saveVacancy(record) },
+  }
+  const api = { get: async url => {
+    const value = String(url)
+    if (value.startsWith('/vacancies/')) return { id: '136453079', employer: { id: '1702778' },
+      name: 'Historical Chelyabinsk', archived: true, published_at: '2026-09-01T00:00:00Z',
+      area: { id: '104', name: 'Челябинск' } }
+    if (value.startsWith('/negotiations?')) return { collections: [
+      { id: 'response', url: 'https://api.hh.ru/negotiations/response?vacancy_id=136453079' },
+    ] }
+    if (value.includes('/negotiations/response')) return { page: 0, pages: 1, found: 1,
+      items: [{ id: 'archived-neg-1', url: 'https://api.hh.ru/negotiations/archived-neg-1' }] }
+    if (value.includes('/negotiations/archived-neg-1')) return { id: 'archived-neg-1',
+      state: { id: 'response' }, updated_at: '2026-09-19T00:00:00Z' }
+    throw new Error(`unexpected ${value}`)
+  } }
+
+  const result = await syncVacancy({ api, token: 'opaque', store, vacancyId: '136453079' })
+  assert.equal(result.pagesRead, 1)
+  assert.equal(result.inserted, 1)
+  assert.equal(result.messagesRead, 0)
+  assert.equal(result.writes, 0)
+  assert.deepEqual({
+    source_mode: vacancyRecord.source_mode,
+    vacancy_lifecycle: vacancyRecord.vacancy_lifecycle,
+    archived_since: vacancyRecord.archived_since,
+    active_acquisition_entry: vacancyRecord.active_acquisition_entry,
+    active_for_live: vacancyRecord.active_for_live,
+  }, vacancyLifecycle('136453079'))
+
+  const effects = {
+    active_route_creation: queries.filter(sql => sql.includes('insert into hh_domain_events')).length,
+    new_candidate_creation: queries.filter(sql => /insert into .*candidate/i.test(sql)).length,
+    outbound_job: queries.filter(sql => sql.includes('insert into hh_telegram_outbox')).length,
+    live_activation: queries.filter(sql => sql.includes('insert into batman_activations')).length,
+  }
+  assert.deepEqual(effects, { active_route_creation: 0, new_candidate_creation: 0,
+    outbound_job: 0, live_activation: 0 })
+  assert.equal(queries.some(sql => sql.includes('insert into hh_negotiations')), true)
+  assert.equal(queries.some(sql => sql.includes('insert into hh_collection_memberships')), true)
+  const beforeScopeCheck = queries.length
+  assert.equal(await persistent.inScopeVacancy('136453079'), false)
+  assert.equal(queries.length, beforeScopeCheck)
+  assert.throws(() => bridgeJob({ employerId: '1702778', vacancyId: '136453079', negotiationId: 'archived-neg-1' }),
+    /HH_ACTIVE_ACQUISITION_SOURCE_BLOCKED/)
+  assert.equal(bridgeJob({ employerId: '1702778', vacancyId: '136455388', negotiationId: 'active-neg-1' }).deliveryState,
+    'awaiting_identity')
+})
+
 test('full collection pagination and repeated snapshot create zero new rows through checkpoint replay', async () => {
   const saved = new Set()
   const store = {
@@ -540,6 +622,9 @@ test('official HH callback shape is scoped and duplicate delivery is idempotent'
     const duplicate = await post(event)
     assert.equal(duplicate.status, 200)
     assert.equal((await duplicate.json()).duplicate, true)
+    assert.equal(events.size, 1)
+    const archived = { ...event, id: 'event-archived', payload: { ...event.payload, vacancy_id: '136453079' } }
+    assert.equal((await post(archived)).status, 400)
     assert.equal(events.size, 1)
     assert.equal((await post({ ...event, payload: { ...event.payload, vacancy_id: 'other' } })).status, 400)
     assert.equal(events.size, 1)

@@ -1,5 +1,6 @@
 const { sha256 } = require('./hh-security')
 const { bridgeJob } = require('./hh-telegram-bridge')
+const { activeAcquisitionAllowed } = require('./hh-vacancy-registry')
 
 function hhStore(pool) {
   async function consumeSession(stateHash, browserHash) {
@@ -139,6 +140,7 @@ function hhStore(pool) {
 
   async function inScopeVacancy(vacancyId) {
     if (!/^\d+$/.test(vacancyId)) return false
+    if (!activeAcquisitionAllowed(vacancyId)) return false
     const { rows } = await pool.query(`select 1 from hh_vacancies where host='hh.ru'
       and employer_id='1702778' and vacancy_id=$1
       and (vacancy_id='136455388' or city_classification='CHELYABINSK_PROVEN') limit 1`, [vacancyId])
@@ -187,18 +189,20 @@ function hhStore(pool) {
           sha256(JSON.stringify({ id, state: item.state?.id, employer_state: item.employer_state?.id, updated_at: item.updated_at }))])
         if (result.rows[0]?.inserted) {
           inserted++
-          const job = bridgeJob({ employerId, vacancyId, negotiationId: id })
-          const event = await client.query(`insert into hh_domain_events
-            (host,employer_id,vacancy_id,negotiation_id,event_kind,idempotency_key)
-            values('hh.ru',$1,$2,$3,'hh_negotiation_observed',$4)
-            on conflict(idempotency_key) do nothing returning id`,
-          [employerId, vacancyId, id, job.idempotencyKey])
-          if (event.rows[0]) {
-            await client.query(`insert into hh_telegram_outbox
-              (event_id,event_kind,correlation_id,idempotency_key,delivery_state)
-              values($1,$2,$3,$4,$5)
-              on conflict(idempotency_key) do nothing`,
-            [event.rows[0].id, job.eventKind, job.correlationId, job.idempotencyKey, job.deliveryState])
+          if (activeAcquisitionAllowed(vacancyId)) {
+            const job = bridgeJob({ employerId, vacancyId, negotiationId: id })
+            const event = await client.query(`insert into hh_domain_events
+              (host,employer_id,vacancy_id,negotiation_id,event_kind,idempotency_key)
+              values('hh.ru',$1,$2,$3,'hh_negotiation_observed',$4)
+              on conflict(idempotency_key) do nothing returning id`,
+            [employerId, vacancyId, id, job.idempotencyKey])
+            if (event.rows[0]) {
+              await client.query(`insert into hh_telegram_outbox
+                (event_id,event_kind,correlation_id,idempotency_key,delivery_state)
+                values($1,$2,$3,$4,$5)
+                on conflict(idempotency_key) do nothing`,
+              [event.rows[0].id, job.eventKind, job.correlationId, job.idempotencyKey, job.deliveryState])
+            }
           }
         }
         await client.query(`insert into hh_collection_memberships
