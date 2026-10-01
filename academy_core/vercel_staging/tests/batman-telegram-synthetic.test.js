@@ -14,7 +14,7 @@ test('delivers one visibly marked test reply and records Telegram message id', a
     async ingestAndQueue() {
       return { inserted: true, outbox: { id: 'outbox-1', delivery_state: 'queued' } }
     },
-    async leaseOne() { return { id: 'outbox-1', payload: { text: TEST_TEXT } } },
+    async leaseOne() { return { id: 'outbox-1', payload: { text: TEST_TEXT }, idempotency_key: 'batman-synthetic:test:reply' } },
     async markDelivered(job, messageId, campaignId) { transitions.push({ job, messageId, campaignId }) },
     async markFailed() { throw new Error('must_not_fail') },
   }

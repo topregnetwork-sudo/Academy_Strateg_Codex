@@ -15,12 +15,12 @@ function decodeCa(base64) {
 }
 
 function databaseConfig(env = process.env) {
+  const caValue = String(env.BATMAN_DATABASE_CA_PEM_BASE64 || '').trim()
+  const connectionString = String(env.BATMAN_DATABASE_URL || env.DATABASE_URL || '').trim()
+  if (!connectionString) throw new Error('batman_database_url_not_configured')
   return {
-    connectionString: required(env, 'BATMAN_DATABASE_URL'),
-    ssl: {
-      ca: decodeCa(required(env, 'BATMAN_DATABASE_CA_PEM_BASE64')),
-      rejectUnauthorized: true,
-    },
+    connectionString,
+    ssl: caValue ? { ca: decodeCa(caValue), rejectUnauthorized: true } : { rejectUnauthorized: true },
     application_name: 'academy-batman-runtime',
     max: Number(env.BATMAN_DATABASE_POOL_MAX || 5),
     connectionTimeoutMillis: Number(env.BATMAN_DATABASE_CONNECT_TIMEOUT_MS || 10000),
@@ -51,4 +51,47 @@ function liveGates(env = process.env) {
   }
 }
 
-module.exports = { databaseConfig, yandexDiskConfig, liveGates }
+const RUNTIME_BINDING_NAMES = Object.freeze([
+  'BATMAN_STRATEG_PLUS_GROUP_INVITE_URL',
+  'BATMAN_OWNER_ROUTE_BASE_URL',
+  'BATMAN_TEAM_ROUTE_BASE_URL',
+  'BATMAN_CABINET_SESSION_BASE_URL',
+  'BATMAN_ZOOM_CAMPAIGN_ID',
+  'BATMAN_ZOOM_MEETING_ID',
+  'BATMAN_ZOOM_MEETING_URL',
+])
+
+const RUN01_TELEGRAM_BINDING_NAMES = Object.freeze([
+  'BATMAN_TELEGRAM_BOT_TOKEN',
+  'BATMAN_TELEGRAM_SYNTHETIC_CHAT_ID',
+])
+
+function bindingStatus(names, env = process.env) {
+  const configured = Object.fromEntries(
+    names.map((name) => [name, Boolean(String(env?.[name] || '').trim())]),
+  )
+  return {
+    configured,
+    missing: names.filter((name) => !configured[name]),
+    ready: names.every((name) => configured[name]),
+    values_exposed: false,
+  }
+}
+
+function runtimeBindingStatus(env = process.env) {
+  return bindingStatus(RUNTIME_BINDING_NAMES, env)
+}
+
+function run01TelegramBindingStatus(env = process.env) {
+  return bindingStatus(RUN01_TELEGRAM_BINDING_NAMES, env)
+}
+
+module.exports = {
+  databaseConfig,
+  yandexDiskConfig,
+  liveGates,
+  RUNTIME_BINDING_NAMES,
+  RUN01_TELEGRAM_BINDING_NAMES,
+  runtimeBindingStatus,
+  run01TelegramBindingStatus,
+}

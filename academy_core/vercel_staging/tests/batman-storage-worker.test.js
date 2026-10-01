@@ -1,6 +1,12 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { databaseConfig, liveGates } = require('../lib/batman-runtime-config')
+const {
+  databaseConfig,
+  liveGates,
+  RUNTIME_BINDING_NAMES,
+  runtimeBindingStatus,
+  run01TelegramBindingStatus,
+} = require('../lib/batman-runtime-config')
 const { ensurePrivateFolder } = require('../lib/yandex-disk')
 const { processStorageJob, resolveStoragePath, runStorageWorkerOnce } = require('../lib/batman-storage-worker')
 
@@ -27,8 +33,32 @@ test('all new runtime gates default closed', () => {
   })
 })
 
+test('Batman route bindings are checked by name without exposing values', () => {
+  const empty = runtimeBindingStatus({})
+  assert.equal(empty.ready, false)
+  assert.deepEqual(empty.missing, RUNTIME_BINDING_NAMES)
+  assert.equal(empty.values_exposed, false)
+
+  const synthetic = Object.fromEntries(RUNTIME_BINDING_NAMES.map((name) => [name, `synthetic-${name}`]))
+  const ready = runtimeBindingStatus(synthetic)
+  assert.equal(ready.ready, true)
+  assert.deepEqual(ready.missing, [])
+  assert.equal(JSON.stringify(ready).includes('synthetic-'), false)
+})
+
+test('RUN-01 Telegram bindings are independent from future route bindings', () => {
+  const status = run01TelegramBindingStatus({
+    BATMAN_TELEGRAM_BOT_TOKEN: 'synthetic-secret',
+    BATMAN_TELEGRAM_SYNTHETIC_CHAT_ID: '8677186263',
+  })
+  assert.equal(status.ready, true)
+  assert.deepEqual(status.missing, [])
+  assert.equal(status.values_exposed, false)
+})
+
 test('database requires a verified CA and does not disable TLS verification', () => {
   assert.throws(() => databaseConfig({}), /batman_database_url_not_configured/)
+  assert.equal(databaseConfig({ DATABASE_URL: 'postgresql://preview.invalid/db' }).connectionString, 'postgresql://preview.invalid/db')
   const ca = Buffer.from('-----BEGIN CERTIFICATE-----\nsynthetic\n-----END CERTIFICATE-----').toString('base64')
   const config = databaseConfig({ BATMAN_DATABASE_URL: 'postgresql://synthetic.invalid/db', BATMAN_DATABASE_CA_PEM_BASE64: ca })
   assert.equal(config.ssl.rejectUnauthorized, true)

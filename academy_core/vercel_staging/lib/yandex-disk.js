@@ -114,4 +114,29 @@ async function publishResource(path, oauthToken, fetchImpl = fetch) {
   return resource
 }
 
-module.exports = { API_ROOT, createFolder, readFolder, ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResource }
+async function permanentlyDeleteResource(path, oauthToken, fetchImpl = fetch) {
+  const query = new URLSearchParams({ path, permanently: 'true', force_async: 'false' })
+  const response = await fetchImpl(`${API_ROOT}/resources?${query}`, {
+    method: 'DELETE',
+    headers: headers(oauthToken),
+  })
+  if (![202, 204, 404].includes(response.status)) {
+    const body = await responseBody(response)
+    const error = new Error(`yandex_disk_delete_failed_${response.status}`)
+    error.code = body?.error || `http_${response.status}`
+    throw error
+  }
+
+  const verify = await fetchImpl(resourceUrl(path, 'name,path,type,resource_id'), {
+    method: 'GET',
+    headers: headers(oauthToken),
+  })
+  if (verify.status !== 404) {
+    const error = new Error('yandex_disk_delete_readback_failed')
+    error.code = `readback_http_${verify.status}`
+    throw error
+  }
+  return { deleted: true, permanent: true, readbackMissing: true, path }
+}
+
+module.exports = { API_ROOT, createFolder, readFolder, ensurePrivateFolder, listFolder, getUploadLink, uploadFile, publishResource, permanentlyDeleteResource }
