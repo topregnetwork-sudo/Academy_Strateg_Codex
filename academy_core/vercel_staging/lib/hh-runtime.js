@@ -129,6 +129,7 @@ function createHHRuntime(env = process.env, deps = {}) {
       const key = encryptionKey(env)
       const api = hhApi(env, fetchImpl)
       const token = await tokenForCycle(api, key)
+      const beforeCounts = await store.auditCounts?.()
       const scope = await discoverVacancies({ api, token, store })
       const readbacks = []
       for (const vacancyId of scope.included) readbacks.push(await syncVacancy({ api, token, store, vacancyId }))
@@ -144,6 +145,11 @@ function createHHRuntime(env = process.env, deps = {}) {
         pages: readbacks.reduce((n, x) => n + x.pagesRead, 0),
         rawRows: readbacks.reduce((n, x) => n + x.rawRows, 0),
         inserted: readbacks.reduce((n, x) => n + x.inserted, 0) }
+      const afterCounts = await store.auditCounts?.()
+      if (beforeCounts && afterCounts) state.lastCounts.db_delta = {
+        negotiations: afterCounts.negotiations - beforeCounts.negotiations,
+        events: afterCounts.events - beforeCounts.events,
+        outbox: afterCounts.outbox - beforeCounts.outbox }
       try {
         const inventory = await inventoryChats({ api, token, vacancyIds: scope.included })
         state.chats = { status: 'ready', count: inventory.chats.length, pages: inventory.pagesRead,

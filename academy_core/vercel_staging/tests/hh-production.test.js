@@ -6,6 +6,7 @@ const { randomBytes } = require('node:crypto')
 const http = require('node:http')
 const { encryptionKey, seal, open, randomOpaque, challenge, safeApiUrl, signReceiver } = require('../lib/hh-security')
 const { hhApi } = require('../lib/hh-api')
+const { hhStore } = require('../lib/hh-store')
 const { inventoryChats, probeNoViewed } = require('../lib/hh-chats')
 const { managerContext, verifyContext, metadataOnly, vacancyCity, discoverVacancies, syncVacancy } = require('../lib/hh-sync')
 const { bridgeJob } = require('../lib/hh-telegram-bridge')
@@ -137,7 +138,8 @@ test('runtime chat inventory is read-only and reports aggregate counts without c
   const pool = { connect: async () => ({ query: async () => ({ rows: [{ acquired: true }] }), release: () => {} }) }
   const store = { connection: async () => ({ status: 'active', expires_at: new Date(Date.now() + 3600000),
     access_box: seal('opaque-access-token', key), refresh_box: seal('opaque-refresh-token', key) }),
-  saveVacancy: async () => {}, markSync: async () => {} }
+  saveVacancy: async () => {}, markSync: async () => {},
+  auditCounts: async () => ({ negotiations: 555, events: 555, outbox: 555 }) }
   const fetchImpl = async url => {
     const target = new URL(String(url))
     calls.push(target.pathname)
@@ -162,11 +164,24 @@ test('runtime chat inventory is read-only and reports aggregate counts without c
   assert.equal(runtime.state.lastCounts.minsk_baseline_proven, true)
   assert.equal(runtime.state.lastCounts.other_vacancies, 1)
   assert.equal(runtime.state.lastCounts.unknown_vacancies, 0)
+  assert.deepEqual(runtime.state.lastCounts.db_delta, { negotiations: 0, events: 0, outbox: 0 })
   assert.deepEqual(runtime.state.chats, { status: 'ready', count: 1, pages: 1,
     unread_chats: 1, messages_read: 0, sends: 0 })
   assert.equal(calls.filter(x => x === '/common/chats').length, 1)
   assert.equal(calls.some(x => x.includes('/messages')), false)
   assert.equal(JSON.stringify(runtime.state).includes('private message'), false)
+})
+
+test('protected HH database count readback exposes only numeric aggregates', async () => {
+  const queries = []
+  const store = hhStore({ query: async sql => {
+    queries.push(String(sql))
+    return { rows: [{ negotiations: '555', events: '555', outbox: '555' }] }
+  } })
+  assert.deepEqual(await store.auditCounts(), { negotiations: 555, events: 555, outbox: 555 })
+  assert.equal(queries.length, 1)
+  assert.equal(queries[0].includes('access_box'), false)
+  assert.equal(queries[0].includes('resume_id'), false)
 })
 
 test('manager-authorized vacancy inventory classifies Chelyabinsk before negotiation reads', async () => {

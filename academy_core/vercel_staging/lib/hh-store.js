@@ -38,6 +38,20 @@ function hhStore(pool) {
     return rows[0] || null
   }
 
+  async function auditCounts() {
+    const { rows } = await pool.query(`select
+      (select count(*) from hh_negotiations where host='hh.ru' and employer_id='1702778') as negotiations,
+      (select count(*) from hh_domain_events where host='hh.ru' and employer_id='1702778') as events,
+      (select count(*) from hh_telegram_outbox o join hh_domain_events e on e.id=o.event_id
+        where e.host='hh.ru' and e.employer_id='1702778') as outbox`)
+    const row = rows[0] || {}
+    const counts = { negotiations: Number(row.negotiations), events: Number(row.events), outbox: Number(row.outbox) }
+    if (!Object.values(counts).every(value => Number.isSafeInteger(value) && value >= 0)) {
+      throw new Error('HH_DB_AUDIT_INVALID')
+    }
+    return counts
+  }
+
   async function updateTokens({ accessBox, refreshBox, expiresAt, expectedVersion }) {
     const result = await pool.query(`update hh_connections set access_box=$1,refresh_box=$2,expires_at=$3,
       token_version=token_version+1,updated_at=now() where id='hh-ru-employer' and token_version=$4
@@ -169,7 +183,7 @@ function hhStore(pool) {
     await pool.query("update hh_connections set last_error_code=$1,updated_at=now() where id='hh-ru-employer'", [code])
   }
 
-  return { consumeSession, saveToken, verifyManager, connection, updateTokens, recoveryRequired, saveSubscription,
+  return { consumeSession, saveToken, verifyManager, connection, auditCounts, updateTokens, recoveryRequired, saveSubscription,
     saveVacancy, inScopeVacancy, savePage, webhookEvent, status, markSync, markError }
 }
 
